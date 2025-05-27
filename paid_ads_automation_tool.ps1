@@ -135,9 +135,15 @@ function get_dag_runs_status {
 }
 
 function main {
+
+    write-host "请确定需求表格及留底表格权限分享给了程序用户:
+    scsbibot01@elite-truck-420707.iam.gserviceaccount.com
+    rogerbot@roger-project-420707.iam.gserviceaccount.com
+    joycebot@joyce-project-420708.iam.gserviceaccount.com
+    aaronbot@aaron-project-420708.iam.gserviceaccount.com" -ForegroundColor cyan -BackgroundColor black
     # 手动键入参数
-    $sheet_name = Read-Host "请输入sheet_name"
-    $log_name = Read-Host "请输入log_name"
+    $sheet_name = Read-Host "请输入table_name"
+    $log_name = Read-Host "请输入table_name(留底用)"
     while ($true) {
         $task_id = "$env:USERNAME$(Get-Date -Format 'yyyy-MM-dd-HH-mm-ss')"
         write-host "-------------------------------------------------"
