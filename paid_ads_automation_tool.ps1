@@ -57,16 +57,16 @@ function run_a_dag {
         "conf" = $conf_dict | ConvertFrom-Json  
         "dag_run_id" = $task_id
     } | ConvertTo-Json -Depth 10
-
+    $bodyBytes = [System.Text.Encoding]::UTF8.GetBytes($body)
     $headers = @{
         "Accept" = "application/json"
-        "Content-Type" = "application/json"
+        "Content-Type" = "application/json; charset=utf-8"
     }
 
     $url = "http://10.58.6.138:8080/api/v1/dags/$dag_id/dagRuns"
     try {
-        $response = Invoke-RestMethod -Uri $url -Method Post -Headers $headers -Body $body -WebSession $session
-        Write-Host "请求成功: $response"
+        $response = Invoke-RestMethod -Uri $url -Method Post -Headers $headers -Body $bodyBytes -WebSession $session
+        # Write-Host "请求成功: $response"
         return $response
     }
     catch {
@@ -90,9 +90,9 @@ function wait_for_running {
     while ($res -eq 'queued') {
         try {
             $response = Invoke-RestMethod -Uri $url -Method Get -Headers $headers -WebSession $session
-            write-host "已存放队列，等待执行中..."
-            Start-Sleep -Seconds 1
             $res = $response.state
+            write-host "已存放队列，等待执行中... $res"
+            Start-Sleep -Seconds 1
         }
     catch {
             Write-Error "请求失败: $_.Exception.Message"
@@ -145,7 +145,7 @@ function main {
         exit
     }
     write-host "task_id: $task_id"
-    $dag_runs = run_a_dag -task_id $task_id -conf_dict "{'sheet_name':'$sheet_name', 'log_name':'$log_name', 'option':'$option'}"
+    $dag_runs = run_a_dag -task_id $task_id -conf_dict "{'sheet_name':'$sheet_name', 'log_name':'$log_name', 'option':$option}"
     wait_for_running -dag_id "paid_ads_automation" -dag_run_id $task_id
     $is_continue = $true
     $offset = 0
@@ -155,7 +155,9 @@ function main {
         $dag_result = get_dag_runs_status -dag_id "paid_ads_automation" -offset $offset -execution_date $dag_runs.execution_date
         write-host $dag_result.message
         $offset = $dag_result.metadata.log_pos
-        $is_continue = -not $dag_result.metadata.end_of_log
+        if ($offset -gt 0) {
+            $is_continue = -not $dag_result.metadata.end_of_log
+        }
         Start-Sleep -Seconds 2
     }
 }
