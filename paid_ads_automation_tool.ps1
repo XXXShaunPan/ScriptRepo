@@ -46,7 +46,7 @@ function Login_Airflow {
 
 function run_a_dag {
     param (
-        [string]$dag_id = 'ads_schedule_script',
+        [string]$dag_id = 'paid_ads_automation',
         [string]$task_id,
         [string]$conf_dict
     )
@@ -75,10 +75,36 @@ function run_a_dag {
     }
 }
 
+function wait_for_running {
+    param (
+        [string]$dag_id = 'paid_ads_automation',
+        [string]$dag_run_id
+    )
+
+    $url = "http://10.58.6.138:8080/api/v1/dags/$dag_id/dagRuns/$dag_run_id"
+    
+    $headers = @{
+        "Accept" = "application/json"
+    }
+    $res = 'queued'
+    while ($res -eq 'queued') {
+        try {
+            $response = Invoke-RestMethod -Uri $url -Method Get -Headers $headers -WebSession $session
+            write-host "已存放队列，等待执行中..."
+            Start-Sleep -Seconds 1
+            $res = $response.state
+        }
+    catch {
+            Write-Error "请求失败: $_.Exception.Message"
+            throw $_
+        }
+    }
+}
+
 function get_dag_runs_status {
 
     param (
-        [string]$dag_id = 'ads_schedule_script',
+        [string]$dag_id = 'paid_ads_automation',
         [string]$offset = 0,
         [string]$execution_date = '2025-05-26T03:00:06.796574+00:00'
     )
@@ -110,18 +136,23 @@ function get_dag_runs_status {
 
 function main {
     # 手动键入参数
-    $task_id = "$env:USERNAME _$(Get-Date -Format 'yyyy-MM-dd')"
+    $task_id = "$env:USERNAME$(Get-Date -Format 'yyyy-MM-dd-HH-mm-ss')"
     $sheet_name = Read-Host "请输入sheet_name"
     $log_name = Read-Host "请输入log_name"
+    write-host "1.创建广告，2.关停和重新开启广告，3.出价和预算调整-search，4.出价和预算调整-discovery，5.出价和预算调整-Product ads all，6.顺序执行所有，0.退出程序"
     $option = Read-Host "请输入option"
+    if ($option -eq '0') {
+        exit
+    }
     write-host "task_id: $task_id"
     $dag_runs = run_a_dag -task_id $task_id -conf_dict "{'sheet_name':'$sheet_name', 'log_name':'$log_name', 'option':'$option'}"
+    wait_for_running -dag_id "paid_ads_automation" -dag_run_id $task_id
     $is_continue = $true
     $offset = 0
     # 登录airflow
     Login_Airflow
     while ($is_continue) {
-        $dag_result = get_dag_runs_status -dag_id "ads_schedule_script" -offset $offset -execution_date $dag_runs.execution_date
+        $dag_result = get_dag_runs_status -dag_id "paid_ads_automation" -offset $offset -execution_date $dag_runs.execution_date
         write-host $dag_result.message
         $offset = $dag_result.metadata.log_pos
         $is_continue = -not $dag_result.metadata.end_of_log
@@ -130,11 +161,5 @@ function main {
 }
 
 main
-
-
-# run_a_dag -dag_id "ads_schedule_script" -task_id "test_task" -conf_dict "{}"
-
 write-host "done"
-
-
-# $session.Cookies.GetCookies("http://10.58.6.138:8080") | Format-Table Name, Value, Expires
+pause
