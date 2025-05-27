@@ -91,7 +91,7 @@ function wait_for_running {
         try {
             $response = Invoke-RestMethod -Uri $url -Method Get -Headers $headers -WebSession $session
             $res = $response.state
-            write-host "已存放队列，等待执行中... $res"
+            write-host "已存放队列，等待执行中... $res" -ForegroundColor yellow -BackgroundColor black
             Start-Sleep -Seconds 1
         }
     catch {
@@ -127,7 +127,7 @@ function get_dag_runs_status {
     
     try {
         $response = Invoke-RestMethod -Uri $uri -Method Get -Headers $headers -WebSession $session -Body $params
-        $response
+        return $response
     } catch {
         Write-Host "An error occurred:"
         Write-Host $_.Exception.Message
@@ -139,29 +139,54 @@ function main {
     $task_id = "$env:USERNAME$(Get-Date -Format 'yyyy-MM-dd-HH-mm-ss')"
     $sheet_name = Read-Host "请输入sheet_name"
     $log_name = Read-Host "请输入log_name"
-    write-host "1.创建广告，2.关停和重新开启广告，3.出价和预算调整-search，4.出价和预算调整-discovery，5.出价和预算调整-Product ads all，6.顺序执行所有，0.退出程序"
-    $option = Read-Host "请输入option"
-    if ($option -eq '0') {
-        exit
-    }
-    write-host "task_id: $task_id"
-    $dag_runs = run_a_dag -task_id $task_id -conf_dict "{'sheet_name':'$sheet_name', 'log_name':'$log_name', 'option':$option}"
-    wait_for_running -dag_id "paid_ads_automation" -dag_run_id $task_id
-    $is_continue = $true
-    $offset = 0
-    # 登录airflow
-    Login_Airflow
-    while ($is_continue) {
-        $dag_result = get_dag_runs_status -dag_id "paid_ads_automation" -offset $offset -execution_date $dag_runs.execution_date
-        write-host $dag_result.message
-        $offset = $dag_result.metadata.log_pos
-        if ($offset -gt 0) {
-            $is_continue = -not $dag_result.metadata.end_of_log
+    while ($true) {
+        write-host "-------------------------------------------------"
+        write-host "1.创建广告，2.关停和重新开启广告，3.出价和预算调整-search，4.出价和预算调整-discovery，5.出价和预算调整-Product ads all，6.顺序执行所有，0.退出程序" -ForegroundColor green -BackgroundColor black
+        $option = Read-Host "请输入option"
+        if ($option -eq '0') {
+            exit
         }
-        Start-Sleep -Seconds 2
+        write-host "task_id: $task_id"
+        $dag_runs = run_a_dag -task_id $task_id -conf_dict "{'sheet_name':'$sheet_name', 'log_name':'$log_name', 'option':$option}"
+        wait_for_running -dag_id "paid_ads_automation" -dag_run_id $task_id
+        $is_continue = $true
+        $offset = 0
+        # 登录airflow
+        Login_Airflow
+        while ($is_continue) {
+            $dag_result = get_dag_runs_status -dag_id "paid_ads_automation" -offset $offset -execution_date $dag_runs.execution_date
+            $offset = $dag_result.metadata.log_pos
+            if ($offset -gt 0) {
+                $is_continue = -not $dag_result.metadata.end_of_log
+                # 输出log
+                $result = $dag_result.message[0][1] -split "`n"
+                $result | Select-String -Pattern "new_paid_ads_automation|logging_mixin" | ForEach-Object {
+                    $line = $_.Line.Trim()
+                    
+                    switch -Regex ($line.ToLower()) {
+                        'ERROR' { 
+                            Write-Host $line -ForegroundColor Red -BackgroundColor Black
+                        }
+                        'WARNING' { 
+                            Write-Host $line -ForegroundColor Yellow -BackgroundColor Black
+                        }
+                        'INFO' { 
+                            Write-Host $line -ForegroundColor Green -BackgroundColor Black
+                        }
+                        default {
+                            Write-Host $line -ForegroundColor Cyan -BackgroundColor Black
+                        }
+                    }
+                }
+            }
+                Start-Sleep -Seconds 2
+        }
     }
 }
 
 main
-write-host "done"
+write-host "done" -ForegroundColor green -BackgroundColor black
+[System.Media.SystemSounds]::Hand.Play()
 pause
+
+
