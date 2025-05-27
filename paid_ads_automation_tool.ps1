@@ -136,10 +136,10 @@ function get_dag_runs_status {
 
 function main {
     # 手动键入参数
-    $task_id = "$env:USERNAME$(Get-Date -Format 'yyyy-MM-dd-HH-mm-ss')"
     $sheet_name = Read-Host "请输入sheet_name"
     $log_name = Read-Host "请输入log_name"
     while ($true) {
+        $task_id = "$env:USERNAME$(Get-Date -Format 'yyyy-MM-dd-HH-mm-ss')"
         write-host "-------------------------------------------------"
         write-host "1.创建广告，2.关停和重新开启广告，3.出价和预算调整-search，4.出价和预算调整-discovery，5.出价和预算调整-Product ads all，6.顺序执行所有，0.退出程序" -ForegroundColor green -BackgroundColor black
         $option = Read-Host "请输入option"
