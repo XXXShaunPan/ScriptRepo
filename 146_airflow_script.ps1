@@ -46,8 +46,6 @@ function run_a_dag {
         [string]$task_id,
         [string]$conf_dict
     )
-    # 登录airflow
-    Login_Airflow
 
     $body = @{
         "conf" = $conf_dict | ConvertFrom-Json  
@@ -149,7 +147,7 @@ function get_dag_runs_status {
 }
 
 function main_for_all_dags {
-
+    Login_Airflow
     $dags = get_all_dags
     $dags | ForEach-Object -Begin { $i = 0 } -Process {
         $_ | Select-Object @{Name='序号'; Expression={ $i }}, 
