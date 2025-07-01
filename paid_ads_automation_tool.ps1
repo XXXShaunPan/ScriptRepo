@@ -34,8 +34,8 @@ function Login_Airflow {
 
     $body = @{
         "csrf_token" = $token
-        "username" = "yara"
-        "password" = "lovitoyara"
+        "username" = "shaun"
+        "password" = "shaun2024"
         "next" = "http://34.142.225.103:8080/home"
     }
 
