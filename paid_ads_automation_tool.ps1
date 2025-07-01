@@ -2,7 +2,7 @@ $session = New-Object Microsoft.PowerShell.Commands.WebRequestSession
 
 function Login_Airflow {
     # 检查是否存在 session cookie
-    # $existingCookie = ($session.Cookies.GetCookies("http://10.58.6.138:8080") | 
+    # $existingCookie = ($session.Cookies.GetCookies("http://34.142.225.103:8080") | 
     #               Where-Object Name -eq "session")
     
     # if ($existingCookie) {
@@ -13,13 +13,13 @@ function Login_Airflow {
     #     $session.Cookies = New-Object System.Net.CookieContainer
 
     #     # 3. 重新添加 Cookie（修正域名格式）
-    #     $newCookie = New-Object System.Net.Cookie("session", $temp_cookie, "/", "10.58.6.138")  # 注意端口号
+    #     $newCookie = New-Object System.Net.Cookie("session", $temp_cookie, "/", "34.142.225.103")  # 注意端口号
     #     $newCookie.HttpOnly = $true
     #     $session.Cookies.Add($newCookie)
     #     return
     # }
     $session.Cookies = New-Object System.Net.CookieContainer
-    $loginUrl = "http://10.58.6.138:8080/login/?next=http://10.58.6.138:8080/home"
+    $loginUrl = "http://34.142.225.103:8080/login/?next=http://34.142.225.103:8080/home"
     $response = Invoke-WebRequest -Uri $loginUrl -WebSession $session
     
     $token = ($response.ParsedHtml.getElementById("csrf_token")).value
@@ -28,7 +28,7 @@ function Login_Airflow {
         "Accept" = "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7"
         "Accept-Language" = "zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6"
         "Content-Type" = "application/x-www-form-urlencoded"
-        "Referer" = "http://10.58.6.138:8080/login/?next=http%3A%2F%2F10.58.6.138%3A8080%2Fhome"
+        "Referer" = "http://34.142.225.103:8080/login/?next=http%3A%2F%2F34.142.225.103%3A8080%2Fhome"
         "User-Agent" = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
     }
 
@@ -36,10 +36,10 @@ function Login_Airflow {
         "csrf_token" = $token
         "username" = "yara"
         "password" = "lovitoyara"
-        "next" = "http://10.58.6.138:8080/home"
+        "next" = "http://34.142.225.103:8080/home"
     }
 
-    $loginPostUrl = "http://10.58.6.138:8080/login/"
+    $loginPostUrl = "http://34.142.225.103:8080/login/"
     $response = Invoke-WebRequest -Uri $loginPostUrl -WebSession $session -Method POST -Headers $headers -Body $body
 }
 
@@ -63,7 +63,7 @@ function run_a_dag {
         "Content-Type" = "application/json; charset=utf-8"
     }
 
-    $url = "http://10.58.6.138:8080/api/v1/dags/$dag_id/dagRuns"
+    $url = "http://34.142.225.103:8080/api/v1/dags/$dag_id/dagRuns"
     try {
         $response = Invoke-RestMethod -Uri $url -Method Post -Headers $headers -Body $bodyBytes -WebSession $session
         # Write-Host "请求成功: $response"
@@ -81,7 +81,7 @@ function wait_for_running {
         [string]$dag_run_id
     )
 
-    $url = "http://10.58.6.138:8080/api/v1/dags/$dag_id/dagRuns/$dag_run_id"
+    $url = "http://34.142.225.103:8080/api/v1/dags/$dag_id/dagRuns/$dag_run_id"
     
     $headers = @{
         "Accept" = "application/json"
@@ -108,7 +108,7 @@ function get_dag_runs_status {
         [string]$offset = 0,
         [string]$execution_date = '2025-05-26T03:00:06.796574+00:00'
     )
-    $uri = "http://10.58.6.138:8080/get_logs_with_metadata"
+    $uri = "http://34.142.225.103:8080/get_logs_with_metadata"
     $params =@{
         'dag_id' = $dag_id
         'task_id' = $dag_id
