@@ -1,18 +1,23 @@
-from DrissionPage import Chromium, ChromiumOptions
-import time
-import os
-import json
-from string import Template
-from utils.common_new import *
-
 # 数据准备
-data = read_gsheet('12SmpcD-Fm9vOXPf4IrNe9nTzNiP_-Kv1_as_qyloAiY', '评分表',
-                   "A2:W", 3).assign(new_asp='', new_comment_count='')
+sheet_URL = input('请输入要跑的评分表gsheet链接：')
+sheet = open_gsheet_by_url(sheet_URL, '评分表')
+data = read_gsheet(sheet_URL, '评分表', "A2:W", 3)
+
+logger = Log(name=f'{datetime.now().strftime("%Y-%m-%d")}_shein_crawl_log',
+             log_level=None,
+             is_write_to_console=None,
+             is_write_to_file=False,
+             color=None,
+             mode=None,
+             max_bytes=None,
+             backup_count=None,
+             encoding=None,
+             log_format="%(asctime)s|line:%(lineno)d| %(message)s")
 
 need_to_crawl_list = list(
     filter(lambda x: 'shein' in x[1], data[['对标热销品item link',
                                             '对标热销品asp前台价']].itertuples()))
-need_to_crawl_list.sort(key=lambda x: x[2])
+need_to_crawl_list.sort(key=lambda x: x[1].split('.shein')[0])
 
 
 def review_num_show(review_num):
@@ -104,7 +109,7 @@ def create_proxy_auth_extension(proxy_host,
 
 def check_has_capcha(page):
     if page.ele('.captcha_click_confirm', timeout=1):
-        print('有验证码, 请先过验')
+        logger.warning('有验证码, 请先过验')
 
 
 co = ChromiumOptions()
@@ -124,6 +129,7 @@ proxy_auth_plugin_path = create_proxy_auth_extension(
 #     page.close()
 
 # path = '/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge'
+# path = 'C:/Program Files/Google/Chrome/Application/chrome. exe'
 path = 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe'
 co.set_browser_path(path)
 # co.set_user_data_path(r"/Users/shaun.pan/edge_playwright")
@@ -134,6 +140,7 @@ co.incognito()
 page = Chromium(addr_or_opts=co).get_tab()
 page.listen.start('bff-api/product/get_goods_detail_realtime_data')
 # url = 'https://ph.shein.com/DAZY-Women-V-Neck-Slim-Fit-Long-Sleeve-T-Shirt-With-Bust-Ruching-And-Bowknot-Decoration-For-Summer-p-32556396.html'
+logger.info('开始任务')
 item = need_to_crawl_list.pop(0)
 url = item[1].split('?')[0]
 page.get(url)
@@ -142,41 +149,57 @@ page.get(url)
 # for i in page.cookies(all_domains=False):
 #     print(i)
 refresh_num = 1
+update_list = []
 for packet in page.listen.steps(timeout=60):
-    # print(packet.url)  # 打印数据包json
     try:
-        if 'refresh' == packet and refresh_num < 3:
+        if ('refresh' == packet
+                or not (res :=
+                        packet.response.body.get('info'))) and refresh_num < 3:
             # page.refresh()
-            print('刷新')
+            logger.critical('刷新')
             page.get(url)
             check_has_capcha(page)
             refresh_num += 1
             continue
-        res = packet.response.body['info']
         price = res['priceInfo']['salePrice']['amount']
         comment = res['comment']['comments_overview']['commentNumShow']
-        data.loc[item[0],
-                 ['new_asp', 'new_comment_count']] = price, review_num_show(
-                     int(comment.replace('+', '')))
-        print(data.loc[item[0], ['new_asp', 'new_comment_count']].values)
+        # data.loc[item[0],
+        #          ['new_asp', 'new_comment_count']] = price, review_num_show(
+        #              int(comment.replace('+', '')))
+        # update_list.append({
+        #     'range':
+        #     f'U{item[0]}:V{item[0]}',
+        #     'values': [[price,
+        #                 review_num_show(int(comment.replace('+', '')))]]
+        # })
+        update_item = {
+            'range': f'U{item[0]}:V{item[0]}',
+            'values': [[price,
+                        review_num_show(int(comment.replace('+', '')))]]
+        }
+        logger.info(update_item)
+        gsheet_batch_update(sheet, [update_item])
+
     except Exception as e:
-        print(url)
-        print(e)
+        logger.error(url)
+        logger.error(e)
 
     if not need_to_crawl_list:
         page.listen.stop()
+        logger.success('全部完成')
         break
     while need_to_crawl_list:
         # page.set.cookies.clear()
-        page.wait(1.5, 3.5)
+        # page.wait(1.5, 3)
         item = need_to_crawl_list.pop(0)
         url = item[1].split('?')[0]
         refresh_num = 1
         try:
             page.get(url)
+            if 'OOPS...' in page.html:
+                logger.error(f'错误链接{url}，跳过')
+                continue
             check_has_capcha(page)
             break
         except:
             continue
-
-data.to_csv('result1.csv', index=False)
