@@ -129,8 +129,8 @@ proxy_auth_plugin_path = create_proxy_auth_extension(
 #     page.close()
 
 # path = '/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge'
-# path = 'C:/Program Files/Google/Chrome/Application/chrome.exe'
-path = 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe'
+path = 'C:/Program Files/Google/Chrome/Application/chrome.exe'
+# path = 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe'
 co.set_browser_path(path)
 # co.set_user_data_path(r"/Users/shaun.pan/edge_playwright")
 # print(co.user_data_path)
@@ -173,7 +173,7 @@ for packet in page.listen.steps(timeout=60):
         #                 review_num_show(int(comment.replace('+', '')))]]
         # })
         update_item = {
-            'range': f'U{item[0]}:V{item[0]}',
+            'range': f'V{item[0]}:W{item[0]}',
             'values': [[price,
                         review_num_show(int(comment.replace('+', '')))]]
         }
