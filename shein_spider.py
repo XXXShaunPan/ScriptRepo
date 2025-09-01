@@ -112,11 +112,31 @@ def check_has_capcha(page):
         logger.warning('有验证码, 请先过验')
 
 
+def start(is_catch_capcha=True):
+    global item, url
+    while need_to_crawl_list:
+        # page.set.cookies.clear()
+        # page.wait(1.5, 3)
+        item = need_to_crawl_list.pop(0)
+        url = item[1].split('?')[0]
+        try:
+            page.get(url)
+            if 'OOPS...' in page.html:
+                logger.error(f'错误链接{url}，跳过')
+                continue
+            if is_catch_capcha:
+                check_has_capcha(page)
+            break
+        except Exception as e:
+            logger.error(f'错误链接{url}，错误信息：{e}')
+            continue
+
+
 co = ChromiumOptions()
 
-proxy_auth_plugin_path = create_proxy_auth_extension(
-    "unmetered.residential.proxyrack.net", "222", "fumbatu",
-    "EPOCAS9-6KZAOJD-FFSW6MJ-SJKSQV4-NF0JH7C-KC2VXY7-QZHSRLV")
+# proxy_auth_plugin_path = create_proxy_auth_extension(
+#     "unmetered.residential.proxyrack.net", "222", "fumbatu",
+#     "EPOCAS9-6KZAOJD-FFSW6MJ-SJKSQV4-NF0JH7C-KC2VXY7-QZHSRLV")
 # co.add_extension(path=proxy_auth_plugin_path)
 
 # page = ChromiumPage(co)
@@ -141,9 +161,7 @@ page = Chromium(addr_or_opts=co).get_tab()
 page.listen.start('bff-api/product/get_goods_detail_realtime_data')
 # url = 'https://ph.shein.com/DAZY-Women-V-Neck-Slim-Fit-Long-Sleeve-T-Shirt-With-Bust-Ruching-And-Bowknot-Decoration-For-Summer-p-32556396.html'
 logger.info('开始任务')
-item = need_to_crawl_list.pop(0)
-url = item[1].split('?')[0]
-page.get(url)
+start()
 # check_has_capcha(page)
 # page.get_screenshot(path='.', name='baidu.png')
 # for i in page.cookies(all_domains=False):
@@ -188,18 +206,5 @@ for packet in page.listen.steps(timeout=60):
         page.listen.stop()
         logger.success('全部完成')
         break
-    while need_to_crawl_list:
-        # page.set.cookies.clear()
-        # page.wait(1.5, 3)
-        item = need_to_crawl_list.pop(0)
-        url = item[1].split('?')[0]
-        refresh_num = 1
-        try:
-            page.get(url)
-            if 'OOPS...' in page.html:
-                logger.error(f'错误链接{url}，跳过')
-                continue
-            check_has_capcha(page)
-            break
-        except:
-            continue
+    start()
+    refresh_num = 1
