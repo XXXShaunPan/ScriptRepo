@@ -20,7 +20,7 @@ function Login_Airflow {
     # }
     $session.Cookies = New-Object System.Net.CookieContainer
     $loginUrl = "http://34.142.225.103:8080/login/?next=http://34.142.225.103:8080/home"
-    $response = Invoke-WebRequest -Uri $loginUrl -WebSession $session
+    $response = Invoke-WebRequest -Uri $loginUrl -WebSession $session -UseBasicParsing
     
     $token = ($response.ParsedHtml.getElementById("csrf_token")).value
 
@@ -40,7 +40,7 @@ function Login_Airflow {
     }
 
     $loginPostUrl = "http://34.142.225.103:8080/login/"
-    $response = Invoke-WebRequest -Uri $loginPostUrl -WebSession $session -Method POST -Headers $headers -Body $body
+    $response = Invoke-WebRequest -Uri $loginPostUrl -WebSession $session -Method POST -Headers $headers -Body $body -UseBasicParsing
 }
 
 
@@ -65,7 +65,7 @@ function run_a_dag {
 
     $url = "http://34.142.225.103:8080/api/v1/dags/$dag_id/dagRuns"
     try {
-        $response = Invoke-RestMethod -Uri $url -Method Post -Headers $headers -Body $bodyBytes -WebSession $session
+        $response = Invoke-RestMethod -Uri $url -Method Post -Headers $headers -Body $bodyBytes -WebSession $session -UseBasicParsing
         # Write-Host "请求成功: $response"
         return $response
     }
@@ -89,7 +89,7 @@ function wait_for_running {
     $res = 'queued'
     while ($res -eq 'queued') {
         try {
-            $response = Invoke-RestMethod -Uri $url -Method Get -Headers $headers -WebSession $session
+            $response = Invoke-RestMethod -Uri $url -Method Get -Headers $headers -WebSession $session -UseBasicParsing
             $res = $response.state
             write-host "已存放队列，等待执行中... $res" -ForegroundColor yellow -BackgroundColor black
             Start-Sleep -Seconds 1
@@ -126,7 +126,7 @@ function get_dag_runs_status {
     }
     
     try {
-        $response = Invoke-RestMethod -Uri $uri -Method Get -Headers $headers -WebSession $session -Body $params
+        $response = Invoke-RestMethod -Uri $uri -Method Get -Headers $headers -WebSession $session -Body $params -UseBasicParsing
         return $response
     } catch {
         Write-Host "An error occurred:"
