@@ -140,7 +140,7 @@ function get_dag_runs_status {
     }
     
     try {
-        $response = Invoke-RestMethod -Uri $uri -Method Get -Headers $headers -WebSession $session -Body $params -UseBasicParsing -ContentType "application/json"
+        $response = Invoke-RestMethod -Uri $uri -Method Get -Headers $headers -WebSession $session -Body $params -UseBasicParsing
         return $response
     } catch {
         Write-Host "An error occurred:"
