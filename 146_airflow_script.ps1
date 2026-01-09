@@ -16,9 +16,11 @@ function Login_Airflow {
     # }
     $session.Cookies = New-Object System.Net.CookieContainer
     $loginUrl = "http://34.142.225.103:8080/login/?next=http://34.142.225.103:8080/home"
-    $response = Invoke-WebRequest -Uri $loginUrl -WebSession $session
-    
-    $token = ($response.ParsedHtml.getElementById("csrf_token")).value
+    $response = Invoke-WebRequest -Uri $loginUrl -WebSession $session -UseBasicParsing
+    $htmlContent = $response.Content
+    $pattern = 'name="csrf_token" type="hidden" value="([^"]+)"'
+    $match = $htmlContent | Select-String -Pattern $pattern
+    $token = $match.Matches.Groups[1].Value
 
     $headers = @{
         "Accept" = "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7"
@@ -36,7 +38,7 @@ function Login_Airflow {
     }
 
     $loginPostUrl = "http://34.142.225.103:8080/login/"
-    $response = Invoke-WebRequest -Uri $loginPostUrl -WebSession $session -Method POST -Headers $headers -Body $body
+    $response = Invoke-WebRequest -Uri $loginPostUrl -WebSession $session -Method POST -Headers $headers -Body $body -UseBasicParsing -ContentType "application/x-www-form-urlencoded"
 }
 
 
@@ -59,7 +61,7 @@ function run_a_dag {
 
     $url = "http://34.142.225.103:8080/api/v1/dags/$dag_id/dagRuns"
     try {
-        $response = Invoke-RestMethod -Uri $url -Method Post -Headers $headers -Body $bodyBytes -WebSession $session
+        $response = Invoke-RestMethod -Uri $url -Method Post -Headers $headers -Body $bodyBytes -WebSession $session -UseBasicParsing -ContentType "application/json"
         # Write-Host "请求成功: $response"
         return $response
     }
@@ -77,7 +79,7 @@ function get_all_dags {
         "Accept" = "application/json"
     }
     try {
-        $response = Invoke-RestMethod -Uri $url -Method Get -Headers $headers -WebSession $session
+        $response = Invoke-RestMethod -Uri $url -Method Get -Headers $headers -WebSession $session -UseBasicParsing -ContentType "application/json"
         return $response.dags | Where-Object { $_.owners -contains 'Shaun' }
     }
     catch {
@@ -101,7 +103,7 @@ function wait_for_running {
     $res = 'queued'
     while ($res -eq 'queued') {
         try {
-            $response = Invoke-RestMethod -Uri $url -Method Get -Headers $headers -WebSession $session
+            $response = Invoke-RestMethod -Uri $url -Method Get -Headers $headers -WebSession $session -UseBasicParsing -ContentType "application/json"
             $res = $response.state
             write-host "已存放队列，等待执行中... $res" -ForegroundColor yellow -BackgroundColor black
             Start-Sleep -Seconds 1
@@ -138,7 +140,7 @@ function get_dag_runs_status {
     }
     
     try {
-        $response = Invoke-RestMethod -Uri $uri -Method Get -Headers $headers -WebSession $session -Body $params
+        $response = Invoke-RestMethod -Uri $uri -Method Get -Headers $headers -WebSession $session -Body $params -UseBasicParsing -ContentType "application/json"
         return $response
     } catch {
         Write-Host "An error occurred:"
