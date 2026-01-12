@@ -80,10 +80,13 @@ class QuickMatchingTool(object):
         # 根据操作系统设置浏览器路径
         import platform
         system = platform.system()
-        if system == 'Windows':
+        if system == 'Windows' and os.getlogin() == 'Administrator':
             options.set_browser_path(
                 r'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe'
             )
+        elif system == 'Windows' and os.getlogin() != 'Administrator':
+            options.set_browser_path(
+                r'C:/Program Files/Google/Chrome/Application/chrome.exe')
         elif system == 'Darwin':  # macOS
             options.set_browser_path(
                 r'/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge'
