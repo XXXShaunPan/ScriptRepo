@@ -77,12 +77,19 @@ class QuickMatchingTool(object):
         logging.info(f"使用用户数据目录: {self.user_data_path}")
 
         options = ChromiumOptions()
-        # options.set_browser_path(
-        #     r'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe')
-        # options.set_browser_path(
-        #     'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe')
-        options.set_browser_path(
-            r'/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge')
+        # 根据操作系统设置浏览器路径
+        import platform
+        system = platform.system()
+        if system == 'Windows':
+            options.set_browser_path(
+                r'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe'
+            )
+        elif system == 'Darwin':  # macOS
+            options.set_browser_path(
+                r'/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge'
+            )
+        elif system == 'Linux':
+            options.set_browser_path('/usr/bin/microsoft-edge')
         # options.set_user_data_path('/Users/shaun.pan/edge_playwright')
         # options.incognito()
         # options.headless()
@@ -236,10 +243,12 @@ class QuickMatchingTool(object):
 
         # Team id	Batch id	Product id	Product Name	Product Image	Customized 1	Customized 2	Customized 3	Customized 4	Customized 5	Language
         df = df.rename(columns={'name': 'Product id', 'id': 'Product Image'})
-        df['Batch id'] = datetime.now().strftime('%Y%m%d_%H%M%S')
+        df['Batch id'] = datetime.now().strftime('%Y%m%dT%H%M%S')
         df['Team id'] = 109
         df['Product Image'] = df['Product Image'].apply(
-            lambda x: f'https://drive.google.com/file/d/{x}/view')
+            lambda x:
+            f'https://drive.usercontent.google.com/download?id={x}&export=view'
+        )
         df['Product Name'] = df['Product id']
         df['Customized 1'] = ''
         df['Customized 2'] = ''
@@ -302,6 +311,14 @@ class QuickMatchingTool(object):
         self.tab.wait(5)
         self.tab.ele('@text()=Upload New Data').click()
         self.tab.wait(1)
+        self.tab.ele('@text()=Select').click()
+        self.tab.wait(1)
+        self.tab.actions.move_to(ele_or_loc=self.tab.ele('@title=Cnbc'))
+        self.tab.wait(1)
+        self.tab.actions.scroll(delta_y=350)
+        self.tab.wait(1)
+        self.tab.ele('@title=Shopee').click()
+        self.tab.wait(1)
         self.tab.ele('@id=job_type').click()
         self.tab.wait(1)
         # self.tab.ele('@text()=Source Data for Item pairs').click()
@@ -324,11 +341,8 @@ class QuickMatchingTool(object):
                 return None
             return next(reader)[idx]
 
-    def verify_upload_file_completed(self, host: str, batch_id: str) -> bool:
-        user_token = self.get_user_token(host)
-        if not user_token:
-            logging.error("Get user token failed")
-            return False
+    def verify_upload_file_completed(self, host: str, batch_id: str,
+                                     user_token: str) -> bool:
         session = SessionPage()
         try:
             headers = session._headers
@@ -376,6 +390,39 @@ class QuickMatchingTool(object):
                 tab.close()
         return None
 
+    def to_verify_upload_file_completed(self, host: str, region: str,
+                                        batch_ids: List[str],
+                                        csv_file_paths: List[str],
+                                        job_types: List[str]) -> bool:
+        user_token = self.get_user_token(host)
+        if not user_token:
+            logging.error("Get user token failed")
+            return False
+        need_check_batch_ids = []
+        # 遍历所有batch_id和对应的csv文件
+        for batch_id, csv_file_path, job_type in zip[tuple[str, str, str]](
+                batch_ids, csv_file_paths, job_types):
+            already_uploaded = self.verify_upload_file_completed(
+                host, batch_id, user_token)
+            if not already_uploaded:
+                logging.info(
+                    f"Region: {region}, batch_id: {batch_id} 未上传，开始上传...")
+                self.upload_file(host, csv_file_path, job_type)
+                need_check_batch_ids.append(batch_id)
+        while need_check_batch_ids:
+            for batch_id in need_check_batch_ids:
+                if self.verify_upload_file_completed(host, batch_id,
+                                                     user_token):
+                    need_check_batch_ids.remove(batch_id)
+                    logging.info(
+                        f"Region: {region}, batch_id: {batch_id} 上传处理完毕")
+                else:
+                    logging.info(
+                        f"Region: {region}, batch_id: {batch_id} 处理中...")
+            time.sleep(10)
+        logging.info(f"Region: {region}, batch_ids: {batch_ids} 所有文件上传处理完毕")
+        return True
+
     def create_quick_matching_job(self, host: str, region: str, batch_id: str,
                                   target_batch_id: str) -> bool:
         i = 0
@@ -421,28 +468,6 @@ class QuickMatchingTool(object):
                 continue
         return False
 
-    def to_verify_upload_file_completed(self, host: str, region: str,
-                                        batch_id: str, csv_file_path: str,
-                                        job_type: str) -> bool:
-        already_uploaded = self.verify_upload_file_completed(host, batch_id)
-        if not already_uploaded:
-            logging.info(
-                f"Region: {region}, batch_id: {batch_id} csv file not uploaded, start uploading..."
-            )
-            self.upload_file(host, csv_file_path, job_type)
-            while not self.verify_upload_file_completed(host, batch_id):
-                logging.info(
-                    f"Region: {region}, batch_id: {batch_id} csv file still uploading..."
-                )
-                time.sleep(10)
-            logging.info(
-                f"Region: {region}, batch_id: {batch_id} csv file uploaded successfully"
-            )
-        else:
-            logging.info(
-                f"Region: {region}, batch_id: {batch_id} csv file already uploaded"
-            )
-
     def matched_data_to_gsheet(self, matched_data: pd.DataFrame) -> None:
         origin_data = read_gsheet(self.source_gsheet_data_url,
                                   '评分表',
@@ -460,8 +485,7 @@ class QuickMatchingTool(object):
         self.browser.quit()
 
     def stop(self):
-        self.tab.close()
-        self.browser.quit()
+        ...
 
     def run(self, source_gsheet_url_info: dict) -> None:
         region = 'PH'
@@ -471,7 +495,7 @@ class QuickMatchingTool(object):
             'drive_folder_id']
         host = self.region_host_dict[region]
         csv_file_path = self.save_csv_file_from_gsheet()
-        logging.info(f"Save csv file to {csv_file_path} successfully")
+        logging.info(f"Save source csv file to {csv_file_path} successfully")
         source_batch_id = self.get_batch_id_from_csv(csv_file_path)
         target_output_path, target_batch_id = self.download_target_data()
         logging.info(f"Start processing {region} quick matching job...")
@@ -481,21 +505,17 @@ class QuickMatchingTool(object):
             logging.error("Login failed")
             return
         logging.info(f"Region: {region}, Login successfully")
-        logging.info(f"开始上传target数据，请耐心等待...")
-        self.to_verify_upload_file_completed(host, region, target_batch_id,
-                                             target_output_path,
-                                             'Target Data for Item pairs')
-        logging.info(f"开始上传source数据，请耐心等待...")
-        self.to_verify_upload_file_completed(host, region, source_batch_id,
-                                             csv_file_path,
-                                             'Source Data for Item pairs')
+        self.to_verify_upload_file_completed(
+            host, region, [target_batch_id, source_batch_id],
+            [target_output_path, csv_file_path],
+            ['Target Data for Item pairs', 'Source Data for Item pairs'])
         created = self.create_quick_matching_job(host, region, source_batch_id,
                                                  target_batch_id)
         if not created:
             logging.error(f"Create quick matching job failed")
             return
         logging.info(
-            f"Region: {region}, source_batch_id: {source_batch_id} target_batch_id: {target_batch_id} Create quick matching job   successfully"
+            f"Region: {region}, source_batch_id: {source_batch_id} target_batch_id: {target_batch_id} 创建快速匹配任务成功，"
         )
 
     def batch_run(self, batch_nos: List[str]):
