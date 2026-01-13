@@ -491,6 +491,7 @@ class QuickMatchingTool(object):
         ...
 
     def run(self, source_gsheet_url_info: dict) -> None:
+        logging.info('试试看lo')
         region = 'PH'
         self.source_gsheet_pic_url = source_gsheet_url_info['pic_url']
         self.source_gsheet_data_url = source_gsheet_url_info['data_url']
