@@ -526,7 +526,9 @@ class QuickMatchingTool(object):
     def verify_matching_completed(self, host: str, job_name: str) -> bool:
 
         url = f'{host}/api/v3/quickmatch/jobs?offset=0&limit=25&order_by=-ctime&process_status=1'
-        response = requests.get(url, headers=self.QM_headers, cookies=cookies)
+        response = requests.get(url,
+                                headers=self.QM_headers,
+                                cookies=self.session_cookies)
         if response.status_code == 200:
             data = response.json()
             for job in data.get('data', {}).get('data', []):
