@@ -80,11 +80,11 @@ class QuickMatchingTool(object):
         # 根据操作系统设置浏览器路径
         import platform
         system = platform.system()
-        if system == 'Windows' and os.getlogin() == 'Administrator':
+        if system == 'Windows' and os.getlogin() == 'Administrator':  # 我的win系统
             options.set_browser_path(
                 r'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe'
             )
-        elif system == 'Windows' and os.getlogin() != 'Administrator':
+        elif system == 'Windows' and os.getlogin() != 'Administrator':  # 业务方电脑
             options.set_browser_path(
                 r'C:/Program Files/Google/Chrome/Application/chrome.exe')
         elif system == 'Darwin':  # macOS
@@ -158,6 +158,34 @@ class QuickMatchingTool(object):
             'user-agent':
             'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36 Edg/142.0.0.0',
             'Cookie': gsheet_cookie,
+        }
+        self.QM_headers = {
+            'accept':
+            '*/*',
+            'accept-language':
+            'zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6',
+            'cache-control':
+            'no-cache',
+            'pragma':
+            'no-cache',
+            'priority':
+            'u=1, i',
+            'referer':
+            'https://pricing-center.shopee.ph/quick-matching',
+            'sec-ch-ua':
+            '"Microsoft Edge";v="143", "Chromium";v="143", "Not A(Brand";v="24"',
+            'sec-ch-ua-mobile':
+            '?0',
+            'sec-ch-ua-platform':
+            '"macOS"',
+            'sec-fetch-dest':
+            'empty',
+            'sec-fetch-mode':
+            'cors',
+            'sec-fetch-site':
+            'same-origin',
+            'user-agent':
+            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36 Edg/143.0.0.0',
         }
 
     def init_browser(self):
@@ -276,6 +304,7 @@ class QuickMatchingTool(object):
         df = asyncio.run(self.upload_file_and_get_dataframe(data))
         csv_file_path = f'{self.upload_file_path}/source_matching_data.csv'
         df.to_csv(csv_file_path, index=False)
+        logging.info(f"已将source数据转换为csv文件，保存到 {csv_file_path}")
         return csv_file_path
 
     def download_target_data(self) -> tuple[str, str]:
@@ -344,8 +373,12 @@ class QuickMatchingTool(object):
                 return None
             return next(reader)[idx]
 
-    def verify_upload_file_completed(self, host: str, batch_id: str,
-                                     user_token: str) -> bool:
+    def verify_upload_file_completed(self, host: str, batch_ids: list[str],
+                                     user_token: str) -> list[str]:
+        """
+        返回batch_ids中已完成的id列表
+        """
+        completed_batch_ids = []
         session = SessionPage()
         try:
             headers = session._headers
@@ -357,41 +390,29 @@ class QuickMatchingTool(object):
             data = session.json
             if data['code'] == 0:
                 for batch in data.get('data', {}).get('data', []):
-                    if batch['batch_id'] == batch_id:
-                        return True
-                return False
+                    if batch['batch_id'] in batch_ids:
+                        completed_batch_ids.append(batch['batch_id'])
+                return completed_batch_ids
             else:
                 logging.error(f"Error: {data['message']}")
-                return False
+                return completed_batch_ids
         except Exception as e:
             logging.error(f"Error: {e}")
-            return False
+            return completed_batch_ids
         finally:
             session.close()
 
     def get_user_token(self, host: str) -> Union[str, None]:
-        # 获取cookie
-        i = 0
-        while i < 3:
-            try:
-                tab = self.browser.new_tab()
-                url = f'{host}/api/v3/users/current'
-                tab.get(url)
-                tab.wait(2)
-                data = tab.json
-                if data['code'] == 0:
-                    return data['data']['token']
-                else:
-                    logging.error(f"Error: {data['message']}")
-                    i += 1
-                    continue
-            except Exception as e:
-                logging.error(f"Error: {e}")
-                i += 1
-                continue
-            finally:
-                tab.close()
-        return None
+        # 获取token，通过get请求获取
+        url = f'{host}/api/v3/users/current'
+        response = requests.get(url,
+                                headers=self.QM_headers,
+                                cookies=self.browser.cookies().as_dict())
+        if response.status_code == 200:
+            return response.json().get('data', {}).get('token', None)
+        else:
+            logging.error(f"Error: {response.status_code}, {response.text}")
+            return None
 
     def to_verify_upload_file_completed(self, host: str, region: str,
                                         batch_ids: List[str],
@@ -401,75 +422,93 @@ class QuickMatchingTool(object):
         if not user_token:
             logging.error("Get user token failed")
             return False
+        self.QM_headers.update({'x-csrf-token': user_token})
         need_check_batch_ids = []
         # 遍历所有batch_id和对应的csv文件
         for batch_id, csv_file_path, job_type in zip[tuple[str, str, str]](
                 batch_ids, csv_file_paths, job_types):
             already_uploaded = self.verify_upload_file_completed(
-                host, batch_id, user_token)
+                host, [batch_id], user_token)
             if not already_uploaded:
                 logging.info(
                     f"Region: {region}, batch_id: {batch_id} 未上传，开始上传...")
                 self.upload_file(host, csv_file_path, job_type)
                 need_check_batch_ids.append(batch_id)
+        """获取浏览器cookie等信息，然后关闭浏览器tab，返回True"""
+        self.session_cookies = self.tab.cookies().as_dict()
+        self.browser.quit()
         while need_check_batch_ids:
-            for batch_id in need_check_batch_ids:
-                if self.verify_upload_file_completed(host, batch_id,
-                                                     user_token):
-                    need_check_batch_ids.remove(batch_id)
-                    logging.info(
-                        f"Region: {region}, batch_id: {batch_id} 上传处理完毕")
-                else:
-                    logging.info(
-                        f"Region: {region}, batch_id: {batch_id} 处理中...")
-            time.sleep(10)
+            if tmp_completed_batch_ids := self.verify_upload_file_completed(
+                    host, need_check_batch_ids, user_token):
+                need_check_batch_ids = list(
+                    set(need_check_batch_ids) - set(tmp_completed_batch_ids))
+                logging.info(
+                    f"Region: {region}, batch_ids: {tmp_completed_batch_ids} 上传处理完毕"
+                )
+            else:
+                logging.info(
+                    f"Region: {region}, batch_ids: {need_check_batch_ids} 处理中..."
+                )
+            time.sleep(5)
         logging.info(f"Region: {region}, batch_ids: {batch_ids} 所有文件上传处理完毕")
         return True
 
     def create_quick_matching_job(self, host: str, region: str, batch_id: str,
                                   target_batch_id: str) -> bool:
-        i = 0
-        while i < 3:
-            try:
-                current_date = datetime.now().strftime('%Y%m%d')[2:]
-                self.tab.get(f'{host}{self.quick_matching_path}')
-                self.tab.wait(5)
-                self.tab.ele('@text()=Quick Matching').click()
-                self.tab.wait(1)
-                self.tab.ele('@id=rc-tabs-0-tab-2').click()
-                self.tab.wait(1)
-                self.tab.ele('@text()=Create New Job').click()
-                self.tab.wait(1)
-                self.tab.ele('@id=job_name').input(
-                    f'match_{current_date}_{region.lower()}')
-                self.tab.wait(1)
-                self.tab.ele('@id=source_team_id').input(106)
-                self.tab.wait(1)
-                self.tab.ele('@id=source_batch_id').input(batch_id)
-                self.tab.wait(1)
-                self.tab.ele(
-                    'css:#target_type > label:nth-child(2) > span.ant-radio > input'
-                ).check()
-                self.tab.wait(1)
-                self.tab.ele('@id=target_team_id').input(106)
-                self.tab.wait(1)
-                self.tab.ele('@id=target_batch_id').input(target_batch_id)
-                self.tab.wait(1)
-                self.tab.ele('css:input[type="number"]').focus()
-                self.tab.ele('css:input[type="number"]').clear()
-                self.tab.wait(1)
-                self.tab.ele('css:input[type="number"]').input(50)
-                self.tab.wait(1)
-                self.tab.ele('@text()=Create').click()
-                self.tab.wait(1)
-                return True
-            except Exception as e:
-                logging.error(
-                    f"Create quick matching job region: {region} batch_id: {batch_id} failed, Error: {e}"
-                )
-                i += 1
-                continue
-        return False
+        # i = 0
+        # while i < 3:
+        #     try:
+        #         current_date = datetime.now().strftime('%Y%m%d')[2:]
+        #         self.tab.get(f'{host}{self.quick_matching_path}')
+        #         self.tab.wait(5)
+        #         self.tab.ele('@text()=Quick Matching').click()
+        #         self.tab.wait(1)
+        #         self.tab.ele('@id=rc-tabs-0-tab-2').click()
+        #         self.tab.wait(1)
+        #         self.tab.ele('@text()=Create New Job').click()
+        #         self.tab.wait(1)
+        #         self.tab.ele('@id=job_name').input(
+        #             f'match_{current_date}_buyer')
+        #         self.tab.wait(1)
+        #         self.tab.ele('@id=source_team_id').input(106)
+        #         self.tab.wait(1)
+        #         self.tab.ele('@id=source_batch_id').input(batch_id)
+        #         self.tab.wait(1)
+        #         self.tab.ele(
+        #             'css:#target_type > label:nth-child(2) > span.ant-radio > input'
+        #         ).check()
+        #         self.tab.wait(1)
+        #         self.tab.ele('@id=target_team_id').input(106)
+        #         self.tab.wait(1)
+        #         self.tab.ele('@id=target_batch_id').input(target_batch_id)
+        #         self.tab.wait(1)
+        #         self.tab.ele('css:input[type="number"]').focus()
+        #         self.tab.ele('css:input[type="number"]').clear()
+        #         self.tab.wait(1)
+        #         self.tab.ele('css:input[type="number"]').input(50)
+        #         self.tab.wait(1)
+        #         self.tab.ele('@text()=Create').click()
+        #         self.tab.wait(1)
+        #         return f'match_{current_date}_buyer'
+        #     except Exception as e:
+        #         logging.error(
+        #             f"Create quick matching job region: {region} batch_id: {batch_id} failed, Error: {e}"
+        #         )
+        #         i += 1
+        #         continue
+        # return False
+        url = f"{host}/api/v3/quickmatch/jobs-upload"
+        current_date = datetime.now().strftime('%Y%m%d')[2:]
+        payload = f'team_id=13&job_name=match_{current_date}_{region}&product_type=1&match_type=1&data_range_type=0&source_team_id=106&source_batch_id={batch_id}&target_type=4&quick_match_sort_policy=0&topk=10&target_team_id=106&target_batch_id={target_batch_id}&version=1&frequency=0&run_time_gap=0'
+        headers = self.QM_headers
+
+        response = requests.request("POST",
+                                    url,
+                                    headers=headers,
+                                    data=payload,
+                                    cookies=self.session_cookies)
+        if response.status_code == 200:
+            return f'match_{current_date}_{region}'
 
     def matched_data_to_gsheet(self, matched_data: pd.DataFrame) -> None:
         origin_data = read_gsheet(self.source_gsheet_data_url,
@@ -484,6 +523,28 @@ class QuickMatchingTool(object):
                                how='left')
         write_idx = origin_columns.index('Lovito相似款/同款SPU')
 
+    def verify_matching_completed(self, host: str, job_name: str) -> bool:
+
+        url = f'{host}/api/v3/quickmatch/jobs?offset=0&limit=25&order_by=-ctime&process_status=1'
+        response = requests.get(url, headers=self.QM_headers, cookies=cookies)
+        if response.status_code == 200:
+            data = response.json()
+            for job in data.get('data', {}).get('data', []):
+                if job['job_name'] == job_name:
+                    return True
+            return False
+        else:
+            logging.error(f"Error: {response.status_code}")
+            return False
+
+    def waiting_for_matching_completed(self, host: str, job_name: str) -> None:
+        while not self.verify_matching_completed(host, job_name):
+            logging.info(
+                f"job_name: {job_name} matching task not completed, waiting for 10 seconds..."
+            )
+            time.sleep(10)
+        logging.info(f"job_name: {job_name} matching task completed")
+
     def __del__(self):
         self.browser.quit()
 
@@ -491,7 +552,6 @@ class QuickMatchingTool(object):
         ...
 
     def run(self, source_gsheet_url_info: dict) -> None:
-        logging.info('试试看lo')
         region = 'PH'
         self.source_gsheet_pic_url = source_gsheet_url_info['pic_url']
         self.source_gsheet_data_url = source_gsheet_url_info['data_url']
@@ -508,19 +568,22 @@ class QuickMatchingTool(object):
         if not login_success:
             logging.error("Login failed")
             return
-        logging.info(f"Region: {region}, Login successfully")
-        self.to_verify_upload_file_completed(
-            host, region, [target_batch_id, source_batch_id],
+        if not self.to_verify_upload_file_completed(
+                host, region, [target_batch_id, source_batch_id],
             [target_output_path, csv_file_path],
-            ['Target Data for Item pairs', 'Source Data for Item pairs'])
-        created = self.create_quick_matching_job(host, region, source_batch_id,
-                                                 target_batch_id)
-        if not created:
+            ['Target Data for Item pairs', 'Source Data for Item pairs']):
+            logging.error(f"Upload file failed")
+            return
+        job_name = self.create_quick_matching_job(host, region,
+                                                  source_batch_id,
+                                                  target_batch_id)
+        if not job_name:
             logging.error(f"Create quick matching job failed")
             return
         logging.info(
-            f"Region: {region}, source_batch_id: {source_batch_id} target_batch_id: {target_batch_id} 创建快速匹配任务成功，"
+            f"Region: {region}, source_batch_id: {source_batch_id} target_batch_id: {target_batch_id} 创建快速匹配任务成功，job_name: {job_name}"
         )
+        self.waiting_for_matching_completed(host, job_name)
 
     def batch_run(self, batch_nos: List[str]):
         for batch_no in batch_nos:
