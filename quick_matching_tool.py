@@ -89,8 +89,9 @@ class QuickMatchingTool(object):
                 r'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe'
             )
         elif system == 'Windows' and os.getlogin() != 'Administrator':  # 业务方电脑
-            options.set_browser_path(
-                r'C:/Program Files/Google/Chrome/Application/chrome.exe')
+            # options.set_browser_path(
+            #     r'C:/Program Files/Google/Chrome/Application/chrome.exe')
+            pass
         elif system == 'Darwin':  # macOS
             options.set_browser_path(
                 r'/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge'
