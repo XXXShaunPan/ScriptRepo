@@ -560,25 +560,29 @@ class QuickMatchingTool(object):
         logging.info(f"job_name: {job_name} matching task completed")
         return job_info
 
-    def export_and_download_matching_result(self, host: str, job_info: dict) -> None:
+    def export_and_download_matching_result(self, host: str,
+                                            job_info: dict) -> None:
         url = f'{host}/api/v3/quickmatch/jobs/{job_info["jobid"]}/export'
         response = requests.post(url,
-                                headers=self.QM_headers,
-                                cookies=self.session_cookies,
-                                json={"matched_item_count": 1})
+                                 headers=self.QM_headers,
+                                 cookies=self.session_cookies,
+                                 json={"matched_item_count": 1})
         if response.status_code == 200 and response.json().get('code') == 0:
             task_id = response.json().get('data', {}).get('taskid')
             export_url = f'{host}/api/v3/exporttasks/{task_id}/result/url'
             export_response = requests.get(export_url,
                                            headers=self.QM_headers,
                                            cookies=self.session_cookies)
-            if export_response.status_code == 200 and export_response.json().get('code') == 0:
+            if export_response.status_code == 200 and export_response.json(
+            ).get('code') == 0:
                 file_url = export_response.json().get('data')
                 # 请求file_url，保存为csv文件
                 response = requests.get(file_url)
-                with open(f'{job_info["jobid"]}-matching_result.csv', 'wb') as f:
+                with open(f'{job_info["jobid"]}-matching_result.csv',
+                          'wb') as f:
                     f.write(response.content)
-                logging.info(f"已将匹配结果{job_info["jobid"]}-matching_result.csv'保存到本地")
+                logging.info(
+                    f'已将匹配结果{job_info["jobid"]}-matching_result.csv保存到本地')
                 logging.info(f"程序正常结束！")
         else:
             logging.error(f"Error: {response.status_code}")
