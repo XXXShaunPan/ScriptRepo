@@ -578,7 +578,7 @@ class QuickMatchingTool(object):
                 response = requests.get(file_url)
                 with open(f'{job_info["jobid"]}-matching_result.csv', 'wb') as f:
                     f.write(response.content)
-                logging.info(f"已将匹配结果{f'{job_info["jobid"]}-matching_result.csv'}保存到本地")
+                logging.info(f"已将匹配结果{job_info["jobid"]}-matching_result.csv'保存到本地")
                 logging.info(f"程序正常结束！")
         else:
             logging.error(f"Error: {response.status_code}")
