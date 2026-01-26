@@ -196,7 +196,7 @@ class QuickMatchingTool(object):
     def init_browser(self):
         try:
             self.browser = Chromium(addr_or_opts=self.options)
-            self.tab = self.browser.get_tab()
+            self.tab = None  # 先不创建tab，在login时创建
         except Exception as e:
             logging.error(f"初始化浏览器失败: {e}")
             raise e
@@ -344,7 +344,7 @@ class QuickMatchingTool(object):
         return output_path, target_file['name'].split('-')[0]
 
     def login(self, host: str) -> bool:
-        self.tab.get(f'{host}{self.home_path}')
+        self.tab = self.browser.new_tab(f'{host}{self.home_path}')
         self.tab.wait(5)
         while not self.tab.url.startswith(f'{host}{self.home_path}'):
             logging.info(f"Waiting for login...")
