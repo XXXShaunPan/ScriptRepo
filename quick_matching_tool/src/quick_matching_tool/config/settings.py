@@ -15,7 +15,7 @@ VERSION_CHECK_URL = (
     "1fXw9OgtWwiWE90iFdRvBdjYKXT7FTAvHIQbveBnljOc/edit?gid=0#gid=0")
 
 REMOTE_PACKAGE_MANIFEST_URL = (
-    "https://raw.githubusercontent.com/XXXShaunPan/ScriptRepo/refs/heads/main/quick_matching_tool/manifest.json"
+    "https://raw.githubusercontent.com/XXXShaunPan/ScriptRepo/refs/heads/quick_matching_tool/quick_matching_tool/dist/manifest.json"
 )
 
 ENABLE_REMOTE_CODE = True
