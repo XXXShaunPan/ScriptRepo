@@ -32,7 +32,6 @@ logger = logging.getLogger(__name__)
 
 # 项目根目录（quick_matching_tool/）
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-
 # 需要排除的目录/文件模式
 EXCLUDE = {
     "__pycache__",
@@ -66,15 +65,16 @@ def collect_files_simple() -> list[tuple[Path, str]]:
     for f in src_dir.rglob("*"):
         if not f.is_file():
             continue
-        if "__pycache__" in f.parts or f.name.endswith(".pyc") or f.name == ".DS_Store":
+        if "__pycache__" in f.parts or f.name.endswith(
+                ".pyc") or f.name == ".DS_Store":
             continue
         arc = f.relative_to(PROJECT_ROOT)
         result.append((f, str(arc)))
     # 可选：顶层配置文件
-    for name in ("pyproject.toml", "requirements.txt"):
-        p = PROJECT_ROOT / name
-        if p.exists():
-            result.append((p, name))
+    # for name in ("pyproject.toml", "requirements.txt"):
+    #     p = PROJECT_ROOT / name
+    #     if p.exists():
+    #         result.append((p, name))
     return result
 
 
@@ -99,15 +99,16 @@ def create_package(version: str) -> Path:
     return zip_path
 
 
-def generate_manifest(version: str, zip_path: Path, package_url: str | None) -> Path:
+def generate_manifest(version: str, zip_path: Path,
+                      package_url: str | None) -> Path:
     """计算 sha256 并生成 manifest.json。"""
     sha = _sha256(zip_path)
     if not package_url:
         # 默认 raw.githubusercontent.com 路径（需将 zip 推送到 ScriptRepo）
+
         package_url = (
             "https://raw.githubusercontent.com/XXXShaunPan/ScriptRepo/main"
-            f"/quick_matching_tool/package_{version}.zip"
-        )
+            f"/quick_matching_tool/dist/package_{version}.zip")
     manifest = {
         "version": version,
         "url": package_url,
@@ -133,7 +134,8 @@ def do_push(manifest_path: Path, zip_path: Path) -> None:
         logger.warning("当前目录不是 git 仓库，跳过 push")
         return
     subprocess.run(
-        ["git", "add", str(manifest_path), str(zip_path)],
+        ["git", "add", str(manifest_path),
+         str(zip_path)],
         check=True,
         cwd=PROJECT_ROOT,
     )
@@ -168,7 +170,27 @@ def main() -> None:
 
     if args.version:
         version = args.version
+        settings_path = PROJECT_ROOT / "src" / "quick_matching_tool" / "config" / "settings.py"
+        import re
+
+        with open(settings_path, "r", encoding="utf-8") as f:
+            settings_code = f.read()
+        # 替换 CURRENT_VERSION 行
+        pattern = r'^CURRENT_VERSION\s*=\s*["\']([^"\']*)["\']'
+        replacement = f'CURRENT_VERSION = "{version}"'
+        new_settings_code = re.sub(
+            pattern,
+            replacement,
+            settings_code,
+            flags=re.MULTILINE,
+        )
+        if new_settings_code != settings_code:
+            with open(settings_path, "w", encoding="utf-8") as f:
+                f.write(new_settings_code)
+        else:
+            logger.warning("未能在 settings.py 中自动替换版本号，请手动确认。")
     else:
+        # 未传入 version 参数，读取当前版本号
         sys.path.insert(0, str(PROJECT_ROOT / "src"))
         from quick_matching_tool.config.settings import CURRENT_VERSION
         version = CURRENT_VERSION
@@ -178,9 +200,12 @@ def main() -> None:
     manifest_path = generate_manifest(version, zip_path, args.url)
 
     if args.push:
-        do_push(manifest_path, zip_path)
+        print("pushing to github...")
+        # do_push(manifest_path, zip_path)
 
-    logger.info("完成。将 manifest.json 和 %s 放入 ScriptRepo/quick_matching_tool/ 后 push。", zip_path.name)
+    logger.info(
+        "完成。将 manifest.json 和 %s 放入 ScriptRepo/quick_matching_tool/ 后 push。",
+        zip_path.name)
 
 
 if __name__ == "__main__":
