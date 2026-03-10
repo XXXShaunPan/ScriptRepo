@@ -1,0 +1,14 @@
+.DS_Store
+__pycache__
+*.pyc
+.vscode
+.idea
+.venv
+shop_item_map.pkl
+ads_shaun/ads_log/*
+ads_shaun/ads_scs_growth
+paid_ads_automation_electron/node_modules
+quick_matching_tool/build
+quick_matching_tool/upload_files/*
+dist
+quick_matching_tool/config/credentials.json
