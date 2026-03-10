@@ -107,8 +107,8 @@ def generate_manifest(version: str, zip_path: Path,
         # 默认 raw.githubusercontent.com 路径（需将 zip 推送到 ScriptRepo）
 
         package_url = (
-            "https://raw.githubusercontent.com/XXXShaunPan/ScriptRepo/main"
-            f"/quick_matching_tool/dist/package_{version}.zip")
+            f"https://github.com/XXXShaunPan/ScriptRepo/raw/refs/heads/quick_matching_tool/quick_matching_tool/dist/package_{version}.zip"
+        )
     manifest = {
         "version": version,
         "url": package_url,
