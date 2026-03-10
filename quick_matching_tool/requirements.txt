@@ -1,0 +1,12 @@
+drissionpage
+PyQt5
+pyinstaller
+gspread
+oauth2client
+requests
+packaging
+pyquery
+pandas
+aiohttp
+google-api-python-client
+gspread-dataframe
