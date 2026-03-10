@@ -6,5 +6,7 @@ __pycache__
 .venv
 quick_matching_tool/build
 quick_matching_tool/upload_files/*
-dist
+quick_matching_tool/dist/*
 quick_matching_tool/config/credentials.json
+!quick_matching_tool/dist/package_*.zip
+!quick_matching_tool/dist/manifest.json
