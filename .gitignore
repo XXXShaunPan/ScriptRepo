@@ -4,10 +4,6 @@ __pycache__
 .vscode
 .idea
 .venv
-shop_item_map.pkl
-ads_shaun/ads_log/*
-ads_shaun/ads_scs_growth
-paid_ads_automation_electron/node_modules
 quick_matching_tool/build
 quick_matching_tool/upload_files/*
 dist
