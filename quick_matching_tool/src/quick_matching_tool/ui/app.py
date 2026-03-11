@@ -36,11 +36,17 @@ from PyQt5.QtWidgets import (
 )
 
 from quick_matching_tool.config.logging import setup_logging
-from quick_matching_tool.config.settings import CURRENT_VERSION, ENABLE_REMOTE_CODE, VERSION_CHECK_URL
+from quick_matching_tool.config.settings import (
+    CURRENT_VERSION,
+    ENABLE_REMOTE_CODE,
+    REMOTE_PACKAGE_MANIFEST_URL,
+    VERSION_CHECK_URL,
+)
 from quick_matching_tool.utils.tools import build_gsheet_url, extract_gsheet_info
 from quick_matching_tool.ui.logging import LogHandler
 from quick_matching_tool.ui.threads import (
     BatchAddThread,
+    CodeSyncCheckThread,
     CodeSyncThread,
     GSheetLoadThread,
     ToolThread,
@@ -404,6 +410,7 @@ class QuickMatchingApp(QMainWindow):
         setup_logging(handler=self.log_handler)
 
         self.start_load_gsheet_url_info()
+        self.start_code_sync_check()
 
     def apply_styles(self):
         self.setStyleSheet("""
@@ -854,6 +861,29 @@ class QuickMatchingApp(QMainWindow):
             sys.exit(0)
         else:
             QMessageBox.information(self, "更新完成", f"更新已下载到: {new_file_path}")
+
+    def start_code_sync_check(self):
+        """启动时检查是否有新版本可同步。"""
+        if not ENABLE_REMOTE_CODE:
+            return
+        self._code_sync_check_thread = CodeSyncCheckThread(
+            REMOTE_PACKAGE_MANIFEST_URL, CURRENT_VERSION)
+        self._code_sync_check_thread.check_finished.connect(
+            self.on_code_sync_check_finished)
+        self._code_sync_check_thread.start()
+
+    def on_code_sync_check_finished(self, has_update: bool,
+                                    remote_version: str, error_msg: str):
+        if has_update and remote_version:
+            reply = QMessageBox.question(
+                self,
+                "代码同步",
+                f"发现新版本 v{remote_version}代码，是否立即同步？",
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.Yes,
+            )
+            if reply == QMessageBox.Yes:
+                self.sync_remote_code()
 
     def sync_remote_code(self):
         self.sync_code_button.setEnabled(False)

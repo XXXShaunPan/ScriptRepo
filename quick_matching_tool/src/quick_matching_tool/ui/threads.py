@@ -20,8 +20,27 @@ from quick_matching_tool.config.settings import (
 )
 from quick_matching_tool.core.matching_service import QuickMatchingService
 from quick_matching_tool.infra.google_sheets import gsheet_batch_update, open_gsheet_by_url, read_gsheet
-from quick_matching_tool.infra.remote_update import sync_package
+from quick_matching_tool.infra.remote_update import check_code_sync_available, sync_package
 from quick_matching_tool.infra.google_drive import create_folder
+
+
+class CodeSyncCheckThread(QThread):
+    """启动时检查是否有新版本可同步（仅拉 manifest 比对版本）。"""
+    check_finished = pyqtSignal(bool, str, str)
+
+    def __init__(self, manifest_url: str, current_version: str):
+        super().__init__()
+        self.manifest_url = manifest_url
+        self.current_version = current_version
+
+    def run(self):
+        if not ENABLE_REMOTE_CODE:
+            self.check_finished.emit(False, "", "远程代码功能未启用")
+            return
+        has_update, remote_version, err = check_code_sync_available(
+            self.manifest_url, self.current_version
+        )
+        self.check_finished.emit(has_update, remote_version, err)
 
 
 class CodeSyncThread(QThread):
