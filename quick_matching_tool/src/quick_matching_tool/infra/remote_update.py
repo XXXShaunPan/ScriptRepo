@@ -43,6 +43,25 @@ def _read_manifest(manifest_url: str) -> Dict[str, str]:
     return json.loads(response.text)
 
 
+def check_code_sync_available(
+    manifest_url: str, current_version: str
+) -> Tuple[bool, str, str]:
+    """检查远程是否有新版本可同步。返回 (has_update, remote_version, error_msg)。"""
+    try:
+        from packaging import version as pkg_version
+
+        manifest = _read_manifest(manifest_url)
+        remote_version = manifest.get("version", "")
+        if not remote_version:
+            return False, "", "manifest 缺少 version"
+        if pkg_version.parse(remote_version) > pkg_version.parse(current_version):
+            return True, remote_version, ""
+        return False, remote_version, ""
+    except Exception as exc:
+        logging.debug("检查代码同步失败: %s", exc)
+        return False, "", str(exc)
+
+
 def _find_package_root(extracted_dir: Path) -> Optional[Path]:
     direct = extracted_dir / "src" / "quick_matching_tool"
     if direct.exists():
