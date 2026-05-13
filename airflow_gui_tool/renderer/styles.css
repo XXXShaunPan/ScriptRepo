@@ -526,8 +526,82 @@ textarea {
   font-weight: 650;
 }
 
+.mapped-conf-input-wrap {
+  position: relative;
+  display: block;
+}
+
 .mapped-conf-field input {
   width: 100%;
+}
+
+.mapped-conf-input-wrap input {
+  padding-right: 38px;
+}
+
+.field-info {
+  position: absolute;
+  top: 50%;
+  right: 10px;
+  width: 18px;
+  height: 18px;
+  transform: translateY(-50%);
+  border: 1px solid #aebbd0;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #53637c;
+  background: #ffffff;
+  font-size: 12px;
+  font-weight: 760;
+  line-height: 1;
+  z-index: 2;
+}
+
+.field-info:hover,
+.field-info:focus {
+  border-color: var(--blue);
+  color: var(--blue);
+  outline: none;
+}
+
+.field-tooltip {
+  position: absolute;
+  right: -2px;
+  bottom: calc(100% + 8px);
+  width: max-content;
+  max-width: 260px;
+  padding: 8px 10px;
+  border: 1px solid #26364a;
+  border-radius: 6px;
+  background: #17202c;
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 560;
+  line-height: 1.45;
+  white-space: normal;
+  box-shadow: 0 8px 22px rgba(16, 24, 40, 0.18);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(4px);
+  transition: opacity 120ms ease, transform 120ms ease;
+  z-index: 20;
+}
+
+.field-tooltip::after {
+  content: "";
+  position: absolute;
+  right: 8px;
+  top: 100%;
+  border: 6px solid transparent;
+  border-top-color: #17202c;
+}
+
+.field-info:hover .field-tooltip,
+.field-info:focus .field-tooltip {
+  opacity: 1;
+  transform: translateY(0);
 }
 
 .split-content {

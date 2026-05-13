@@ -993,6 +993,7 @@ function getConfFieldConfig(dagId) {
   return (mapping.keys || []).map((key, index) => ({
     key,
     alias: mapping.alias?.[index] || key,
+    tip: mapping.tips?.[index] || "",
   }));
 }
 
@@ -1015,18 +1016,33 @@ function renderDagConfFields() {
         .map(
           (field) => `
             <label class="mapped-conf-field">
-              <input
-                type="text"
-                data-conf-key="${escapeAttr(field.key)}"
-                placeholder="请输入 ${escapeAttr(field.alias)}"
-                aria-label="${escapeAttr(field.alias)}"
-                autocomplete="off"
-              />
+              <span class="mapped-conf-input-wrap">
+                <input
+                  type="text"
+                  data-conf-key="${escapeAttr(field.key)}"
+                  placeholder="请输入 ${escapeAttr(field.alias)}"
+                  aria-label="${escapeAttr(field.alias)}"
+                  autocomplete="off"
+                />
+                ${renderConfFieldTip(field)}
+              </span>
             </label>
           `
         )
         .join("")}
     </div>
+  `;
+}
+
+function renderConfFieldTip(field) {
+  if (!field.tip) {
+    return "";
+  }
+  return `
+    <span class="field-info" tabindex="0" aria-label="${escapeAttr(field.tip)}">
+      i
+      <span class="field-tooltip" role="tooltip">${escapeHtml(field.tip)}</span>
+    </span>
   `;
 }
 

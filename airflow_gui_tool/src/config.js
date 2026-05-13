@@ -226,34 +226,25 @@ function normalizeDagConfFieldMappingItem(item) {
   const dagName = String(item?.dag_name || item?.dagName || "").trim();
   const keys = normalizeDagConfList(item?.keys);
   const aliases = normalizeDagConfList(item?.alias || item?.aliases);
+  const tips = normalizeDagConfList(
+    item?.tips || item?.tip || item?.help || item?.helps || item?.description || item?.descriptions,
+  );
   if (!dagName || !keys.length) {
     return null;
   }
-  return {
+  const normalized = {
     dag_name: dagName,
     keys,
     alias: keys.map((key, index) => aliases[index] || key),
   };
+  if (tips.length) {
+    normalized.tips = keys.map((key, index) => tips[index] || "");
+  }
+  return normalized;
 }
 
-function parseDagConfFieldMapping() {
-  const dagConfEnv = parseEnvFile(".dag-conf.env");
-  const remoteDagConfEnv = parseEnvUrl(
-    process.env.DAG_CONF_ENV_URL ||
-      process.env.DAG_CONF_MAPPING_URL ||
-      dagConfEnv.DAG_CONF_ENV_URL ||
-      dagConfEnv.DAG_CONF_MAPPING_URL ||
-      "",
-  );
-  const mergedDagConfEnv = {
-    ...dagConfEnv,
-    ...remoteDagConfEnv,
-  };
-  const rawMapping =
-    mergedDagConfEnv.DAG_CONF_FIELD_MAPPING ||
-    mergedDagConfEnv.DAG_CONF_MAPPING ||
-    process.env.DAG_CONF_FIELD_MAPPING ||
-    "";
+function parseDagConfMappingFromEnv(env) {
+  const rawMapping = env.DAG_CONF_FIELD_MAPPING || env.DAG_CONF_MAPPING || "";
   if (!rawMapping.trim()) {
     return [];
   }
@@ -266,6 +257,40 @@ function parseDagConfFieldMapping() {
     console.warn(`DAG_CONF_FIELD_MAPPING 解析失败，已忽略: ${error.message}`);
     return [];
   }
+}
+
+function mergeDagConfMappings(...mappingGroups) {
+  const merged = new Map();
+  for (const group of mappingGroups) {
+    for (const mapping of group) {
+      const previous = merged.get(mapping.dag_name) || {};
+      const next = {
+        ...previous,
+        ...mapping,
+      };
+      if (!mapping.tips && previous.tips) {
+        next.tips = previous.tips;
+      }
+      merged.set(mapping.dag_name, next);
+    }
+  }
+  return [...merged.values()];
+}
+
+function parseDagConfFieldMapping() {
+  const dagConfEnv = parseEnvFile(".dag-conf.env");
+  const remoteDagConfEnv = parseEnvUrl(
+    process.env.DAG_CONF_ENV_URL ||
+      process.env.DAG_CONF_MAPPING_URL ||
+      dagConfEnv.DAG_CONF_ENV_URL ||
+      dagConfEnv.DAG_CONF_MAPPING_URL ||
+      "",
+  );
+  return mergeDagConfMappings(
+    parseDagConfMappingFromEnv(dagConfEnv),
+    parseDagConfMappingFromEnv(remoteDagConfEnv),
+    parseDagConfMappingFromEnv(process.env),
+  );
 }
 
 function legacyAirflowService() {

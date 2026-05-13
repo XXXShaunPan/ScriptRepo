@@ -42,9 +42,18 @@ DAG_CONF_FIELD_MAPPING=[
   {
     "dag_name": "ads_credit_moniter",
     "keys": ["location"],
-    "alias": ["站点"]
+    "alias": ["站点"],
+    "tips": ["对应 conf.location，可填写单个站点或脚本约定的站点值"]
   }
 ]
 ```
 
-`keys` 是提交到 Airflow 的 conf 字段名，`alias` 是输入框 placeholder 里的展示名。没有出现在 mapping 里的 DAG 会继续使用原始 JSON 输入框。
+`keys` 是提交到 Airflow 的 conf 字段名，`alias` 是输入框 placeholder 里的展示名，`tips` 是输入框右侧 `i` 图标的悬浮说明。没有出现在 mapping 里的 DAG 会继续使用原始 JSON 输入框。
+
+也可以把 `.dag-conf.env` 放到公网，例如 GitHub raw，然后在 `.env` 里配置：
+
+```env
+DAG_CONF_ENV_URL=https://raw.githubusercontent.com/XXXShaunPan/ScriptRepo/refs/heads/quick_matching_tool/airflow_gui_tool/.dag-conf.env
+```
+
+启动时会优先读取远程 env；远程读取失败时，会自动回退到本地 `.dag-conf.env`。读取远程 env 时会自动追加 cache-busting query，并带上 no-cache 请求头，尽量避开 GitHub raw 的 CDN 延迟。
