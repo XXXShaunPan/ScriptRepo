@@ -1,6 +1,7 @@
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
+const { execFileSync } = require("child_process");
 
 function parseEnvValue(value) {
   const trimmed = String(value || "").trim();
@@ -27,14 +28,8 @@ function canParseJson(value) {
   }
 }
 
-function parseEnvFile(fileName) {
-  const envPath = path.join(__dirname, "..", fileName);
-  if (!fs.existsSync(envPath)) {
-    return {};
-  }
-
+function parseEnvContent(content) {
   const env = {};
-  const content = fs.readFileSync(envPath, "utf8");
   let pending = null;
 
   for (const rawLine of content.split(/\r?\n/)) {
@@ -71,6 +66,61 @@ function parseEnvFile(fileName) {
   }
 
   return env;
+}
+
+function parseEnvFile(fileName) {
+  const envPath = path.join(__dirname, "..", fileName);
+  if (!fs.existsSync(envPath)) {
+    return {};
+  }
+  return parseEnvContent(fs.readFileSync(envPath, "utf8"));
+}
+
+function isHttpUrl(value) {
+  return /^https?:\/\//i.test(String(value || "").trim());
+}
+
+function remoteEnvRequestUrl(url) {
+  const nextUrl = new URL(url);
+  nextUrl.searchParams.set("_airflow_gui_ts", String(Date.now()));
+  return nextUrl.toString();
+}
+
+function parseEnvUrl(url) {
+  const remoteUrl = String(url || "").trim();
+  if (!isHttpUrl(remoteUrl)) {
+    return {};
+  }
+
+  try {
+    const requestUrl = remoteEnvRequestUrl(remoteUrl);
+    const content = execFileSync(
+      "curl",
+      [
+        "-fsSL",
+        "--max-time",
+        "8",
+        "-H",
+        "Cache-Control: no-cache",
+        "-H",
+        "Pragma: no-cache",
+        "-H",
+        "Accept: text/plain",
+        "-A",
+        "airflow-gui-tool",
+        requestUrl,
+      ],
+      {
+        encoding: "utf8",
+        maxBuffer: 1024 * 1024,
+        stdio: ["ignore", "pipe", "pipe"],
+      },
+    );
+    return parseEnvContent(content);
+  } catch (error) {
+    console.warn(`远程 env 读取失败，已回退本地配置: ${remoteUrl} (${error.message})`);
+    return {};
+  }
 }
 
 function loadDotEnv() {
@@ -188,9 +238,20 @@ function normalizeDagConfFieldMappingItem(item) {
 
 function parseDagConfFieldMapping() {
   const dagConfEnv = parseEnvFile(".dag-conf.env");
+  const remoteDagConfEnv = parseEnvUrl(
+    process.env.DAG_CONF_ENV_URL ||
+      process.env.DAG_CONF_MAPPING_URL ||
+      dagConfEnv.DAG_CONF_ENV_URL ||
+      dagConfEnv.DAG_CONF_MAPPING_URL ||
+      "",
+  );
+  const mergedDagConfEnv = {
+    ...dagConfEnv,
+    ...remoteDagConfEnv,
+  };
   const rawMapping =
-    dagConfEnv.DAG_CONF_FIELD_MAPPING ||
-    dagConfEnv.DAG_CONF_MAPPING ||
+    mergedDagConfEnv.DAG_CONF_FIELD_MAPPING ||
+    mergedDagConfEnv.DAG_CONF_MAPPING ||
     process.env.DAG_CONF_FIELD_MAPPING ||
     "";
   if (!rawMapping.trim()) {
