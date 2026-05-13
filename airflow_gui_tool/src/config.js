@@ -2,14 +2,51 @@ const fs = require("fs");
 const os = require("os");
 const path = require("path");
 
-function loadDotEnv() {
-  const envPath = path.join(__dirname, "..", ".env");
+function parseEnvValue(value) {
+  const trimmed = String(value || "").trim();
+  if (
+    (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
+    (trimmed.startsWith("'") && trimmed.endsWith("'"))
+  ) {
+    return trimmed.slice(1, -1);
+  }
+  return trimmed;
+}
+
+function looksLikeJson(value) {
+  const trimmed = parseEnvValue(value);
+  return trimmed.startsWith("[") || trimmed.startsWith("{");
+}
+
+function canParseJson(value) {
+  try {
+    JSON.parse(parseEnvValue(value));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function parseEnvFile(fileName) {
+  const envPath = path.join(__dirname, "..", fileName);
   if (!fs.existsSync(envPath)) {
-    return;
+    return {};
   }
 
+  const env = {};
   const content = fs.readFileSync(envPath, "utf8");
+  let pending = null;
+
   for (const rawLine of content.split(/\r?\n/)) {
+    if (pending) {
+      pending.value += `\n${rawLine}`;
+      if (!looksLikeJson(pending.value) || canParseJson(pending.value)) {
+        env[pending.key] = parseEnvValue(pending.value);
+        pending = null;
+      }
+      continue;
+    }
+
     const line = rawLine.trim();
     if (!line || line.startsWith("#")) {
       continue;
@@ -21,13 +58,24 @@ function loadDotEnv() {
     }
 
     const key = line.slice(0, separatorIndex).trim();
-    let value = line.slice(separatorIndex + 1).trim();
-    if (
-      (value.startsWith('"') && value.endsWith('"')) ||
-      (value.startsWith("'") && value.endsWith("'"))
-    ) {
-      value = value.slice(1, -1);
+    const value = line.slice(separatorIndex + 1).trim();
+    if (looksLikeJson(value) && !canParseJson(value)) {
+      pending = { key, value };
+      continue;
     }
+    env[key] = parseEnvValue(value);
+  }
+
+  if (pending) {
+    env[pending.key] = parseEnvValue(pending.value);
+  }
+
+  return env;
+}
+
+function loadDotEnv() {
+  const env = parseEnvFile(".env");
+  for (const [key, value] of Object.entries(env)) {
     if (!process.env[key]) {
       process.env[key] = value;
     }
@@ -111,6 +159,54 @@ function ensureUniqueServiceIds(services) {
   });
 }
 
+function normalizeDagConfList(value) {
+  if (Array.isArray(value)) {
+    return value;
+  }
+  if (typeof value === "string") {
+    return value
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }
+  return [];
+}
+
+function normalizeDagConfFieldMappingItem(item) {
+  const dagName = String(item?.dag_name || item?.dagName || "").trim();
+  const keys = normalizeDagConfList(item?.keys);
+  const aliases = normalizeDagConfList(item?.alias || item?.aliases);
+  if (!dagName || !keys.length) {
+    return null;
+  }
+  return {
+    dag_name: dagName,
+    keys,
+    alias: keys.map((key, index) => aliases[index] || key),
+  };
+}
+
+function parseDagConfFieldMapping() {
+  const dagConfEnv = parseEnvFile(".dag-conf.env");
+  const rawMapping =
+    dagConfEnv.DAG_CONF_FIELD_MAPPING ||
+    dagConfEnv.DAG_CONF_MAPPING ||
+    process.env.DAG_CONF_FIELD_MAPPING ||
+    "";
+  if (!rawMapping.trim()) {
+    return [];
+  }
+
+  try {
+    const parsed = JSON.parse(rawMapping);
+    const list = Array.isArray(parsed) ? parsed : [parsed];
+    return list.map(normalizeDagConfFieldMappingItem).filter(Boolean);
+  } catch (error) {
+    console.warn(`DAG_CONF_FIELD_MAPPING 解析失败，已忽略: ${error.message}`);
+    return [];
+  }
+}
+
 function legacyAirflowService() {
   const baseUrl = normalizeBaseUrl(process.env.AIRFLOW_BASE_URL || defaultBaseUrl());
   return normalizeAirflowService({
@@ -147,6 +243,7 @@ function parseAirflowServices() {
 loadDotEnv();
 
 const airflowServices = parseAirflowServices();
+const dagConfFieldMapping = parseDagConfFieldMapping();
 const defaultAirflowServiceId = String(
   process.env.AIRFLOW_ACTIVE_SERVICE_ID ||
     process.env.AIRFLOW_DEFAULT_SERVICE_ID ||
@@ -162,5 +259,6 @@ module.exports = {
   },
   airflow: activeAirflowService,
   airflowServices,
+  dagConfFieldMapping,
   defaultAirflowServiceId: activeAirflowService.id,
 };

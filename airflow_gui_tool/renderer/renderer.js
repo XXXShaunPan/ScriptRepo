@@ -1,6 +1,12 @@
 const api = window.airflowApp;
 
-const terminalStates = new Set(["success", "failed", "skipped", "upstream_failed", "removed"]);
+const terminalStates = new Set([
+  "success",
+  "failed",
+  "skipped",
+  "upstream_failed",
+  "removed",
+]);
 const activeStatePriority = [
   "running",
   "queued",
@@ -10,14 +16,6 @@ const activeStatePriority = [
   "deferred",
   "restarting",
   "none",
-];
-
-const DAG_CONF_FIELD_MAPPING = [
-  {
-    dag_name: "ads_credit_moniter",
-    keys: ["location"],
-    alias: ["站点"],
-  },
 ];
 
 const DAG_TAG_CATEGORIES = [
@@ -46,6 +44,7 @@ const DAG_CATEGORY_FILTERS = [
 const elements = {};
 const state = {
   config: null,
+  dagConfFieldMapping: [],
   lastView: {},
   owner: "Shaun",
   dags: [],
@@ -129,9 +128,12 @@ async function init() {
   try {
     const initData = await api.getInit();
     state.config = initData.config;
+    state.dagConfFieldMapping = state.config.dagConfFieldMapping || [];
     state.lastView = initData.state || {};
     state.owner = state.lastView.owner || state.config.owner || "Shaun";
-    state.dagCategory = normalizeDagCategoryKey(state.lastView.dagCategory || "all");
+    state.dagCategory = normalizeDagCategoryKey(
+      state.lastView.dagCategory || "all"
+    );
     state.autoTail = state.lastView.autoTail !== false;
     state.autoFollowTask = state.lastView.autoFollowTask !== false;
 
@@ -150,9 +152,13 @@ async function init() {
 }
 
 function bindEvents() {
-  elements.refreshAllButton.addEventListener("click", () => refreshDags({ restore: false }));
+  elements.refreshAllButton.addEventListener("click", () =>
+    refreshDags({ restore: false })
+  );
   elements.reloginButton.addEventListener("click", relogin);
-  elements.refreshDagButton.addEventListener("click", () => refreshSelectedDag({ keepSelection: true }));
+  elements.refreshDagButton.addEventListener("click", () =>
+    refreshSelectedDag({ keepSelection: true })
+  );
   elements.airflowServiceSelect.addEventListener("change", (event) => {
     switchAirflowService(event.target.value);
   });
@@ -165,12 +171,16 @@ function bindEvents() {
     if (!button) {
       return;
     }
-    state.dagCategory = normalizeDagCategoryKey(button.dataset.category || "all");
+    state.dagCategory = normalizeDagCategoryKey(
+      button.dataset.category || "all"
+    );
     renderDagCategories();
     renderDagList();
     saveLastView({ dagCategory: state.dagCategory });
     const visibleDags = getVisibleDags();
-    const currentIsVisible = visibleDags.some((dag) => dag.dag_id === state.selectedDag?.dag_id);
+    const currentIsVisible = visibleDags.some(
+      (dag) => dag.dag_id === state.selectedDag?.dag_id
+    );
     if (currentIsVisible) {
       return;
     }
@@ -197,7 +207,9 @@ function bindEvents() {
       closeRunConfModal();
     }
   });
-  elements.refreshLogButton.addEventListener("click", () => loadLog({ reset: true }));
+  elements.refreshLogButton.addEventListener("click", () =>
+    loadLog({ reset: true })
+  );
   elements.terminateTaskButton.addEventListener("click", terminateSelectedTask);
   elements.clearLogButton.addEventListener("click", () => {
     state.logText = "";
@@ -228,13 +240,18 @@ function renderAirflowServiceOptions() {
   elements.airflowServiceSelect.innerHTML = services.length
     ? services
         .map((service) => {
-          const label = service.label || `${service.baseUrl} · ${service.username}`;
-          return `<option value="${escapeAttr(service.id)}">${escapeHtml(label)}</option>`;
+          const label =
+            service.label || `${service.baseUrl} · ${service.username}`;
+          return `<option value="${escapeAttr(service.id)}">${escapeHtml(
+            label
+          )}</option>`;
         })
         .join("")
     : `<option value="">未配置 Airflow</option>`;
   elements.airflowServiceSelect.value = activeServiceId;
-  const activeService = services.find((service) => service.id === activeServiceId);
+  const activeService = services.find(
+    (service) => service.id === activeServiceId
+  );
   elements.airflowServiceSelect.title = activeService
     ? `${activeService.baseUrl} · ${activeService.username}`
     : "选择 Airflow 服务";
@@ -251,6 +268,7 @@ async function switchAirflowService(serviceId) {
   try {
     const result = await api.switchAirflowService(serviceId);
     state.config = result.config;
+    state.dagConfFieldMapping = state.config.dagConfFieldMapping || [];
     state.owner = state.config.owner || "Shaun";
     state.dags = [];
     state.staticTasks = [];
@@ -313,7 +331,9 @@ async function refreshDags({ restore = false } = {}) {
     renderDagList();
 
     const visibleDags = getVisibleDags();
-    const restoreDagId = restore ? state.lastView.selectedDagId : state.selectedDag?.dag_id;
+    const restoreDagId = restore
+      ? state.lastView.selectedDagId
+      : state.selectedDag?.dag_id;
     const nextDag =
       visibleDags.find((dag) => dag.dag_id === restoreDagId) ||
       visibleDags.find((dag) => dag.dag_id === state.selectedDag?.dag_id) ||
@@ -336,7 +356,9 @@ async function refreshDags({ restore = false } = {}) {
 
 function renderDagList() {
   const filtered = getVisibleDags();
-  const categoryTotal = state.dags.filter((dag) => matchesDagCategory(dag, state.dagCategory)).length;
+  const categoryTotal = state.dags.filter((dag) =>
+    matchesDagCategory(dag, state.dagCategory)
+  ).length;
   const categoryLabel = getDagCategoryConfig(state.dagCategory).label;
 
   elements.dagCountText.textContent =
@@ -350,17 +372,26 @@ function renderDagList() {
 
   elements.dagList.innerHTML = filtered
     .map((dag) => {
-      const activeClass = dag.dag_id === state.selectedDag?.dag_id ? " active" : "";
+      const activeClass =
+        dag.dag_id === state.selectedDag?.dag_id ? " active" : "";
       const category = getDagCategory(dag);
       const tags = [
-        `<span class="chip">${escapeHtml(dag.owners.join(", ") || "no owner")}</span>`,
+        `<span class="chip">${escapeHtml(
+          dag.owners.join(", ") || "no owner"
+        )}</span>`,
         `<span class="chip category">${escapeHtml(category.label)}</span>`,
-        dag.is_paused ? `<span class="chip skipped">paused</span>` : `<span class="chip success">active</span>`,
+        dag.is_paused
+          ? `<span class="chip skipped">paused</span>`
+          : `<span class="chip success">active</span>`,
       ].join("");
       return `
-        <button class="dag-row${activeClass}" type="button" data-dag-id="${escapeAttr(dag.dag_id)}">
+        <button class="dag-row${activeClass}" type="button" data-dag-id="${escapeAttr(
+        dag.dag_id
+      )}">
           <span class="dag-id">${escapeHtml(dag.dag_id)}</span>
-          <span class="dag-description">${escapeHtml(dag.description || dag.fileloc || "-")}</span>
+          <span class="dag-description">${escapeHtml(
+            dag.description || dag.fileloc || "-"
+          )}</span>
           <span class="tag-row">${tags}</span>
         </button>
       `;
@@ -383,9 +414,12 @@ function renderDagCategories() {
     const count =
       category.key === "all"
         ? state.dags.length
-        : state.dags.filter((dag) => matchesDagCategory(dag, category.key)).length;
+        : state.dags.filter((dag) => matchesDagCategory(dag, category.key))
+            .length;
     return `
-      <button class="category-button${activeClass}" type="button" data-category="${escapeAttr(category.key)}">
+      <button class="category-button${activeClass}" type="button" data-category="${escapeAttr(
+      category.key
+    )}">
         <span>${escapeHtml(category.label)}</span>
         <strong>${escapeHtml(count)}</strong>
       </button>
@@ -398,7 +432,9 @@ function getVisibleDags() {
     if (!matchesDagCategory(dag, state.dagCategory)) {
       return false;
     }
-    const searchText = `${dag.dag_id} ${dag.description} ${dag.owners.join(" ")} ${(dag.tags || []).join(" ")}`.toLowerCase();
+    const searchText = `${dag.dag_id} ${dag.description} ${dag.owners.join(
+      " "
+    )} ${(dag.tags || []).join(" ")}`.toLowerCase();
     return !state.dagSearch || searchText.includes(state.dagSearch);
   });
 }
@@ -409,14 +445,20 @@ function matchesDagCategory(dag, categoryKey) {
     return true;
   }
   if (normalizedCategory === "other") {
-    return !DAG_TAG_CATEGORIES.some((category) => dagHasCategoryTag(dag, category));
+    return !DAG_TAG_CATEGORIES.some((category) =>
+      dagHasCategoryTag(dag, category)
+    );
   }
-  const category = DAG_TAG_CATEGORIES.find((item) => item.key === normalizedCategory);
+  const category = DAG_TAG_CATEGORIES.find(
+    (item) => item.key === normalizedCategory
+  );
   return category ? dagHasCategoryTag(dag, category) : true;
 }
 
 function getDagCategory(dag) {
-  const category = DAG_TAG_CATEGORIES.find((item) => dagHasCategoryTag(dag, item));
+  const category = DAG_TAG_CATEGORIES.find((item) =>
+    dagHasCategoryTag(dag, item)
+  );
   return category || getDagCategoryConfig("other");
 }
 
@@ -429,12 +471,17 @@ function dagHasCategoryTag(dag, category) {
 }
 
 function getDagCategoryConfig(categoryKey) {
-  return DAG_CATEGORY_FILTERS.find((category) => category.key === categoryKey) || DAG_CATEGORY_FILTERS[0];
+  return (
+    DAG_CATEGORY_FILTERS.find((category) => category.key === categoryKey) ||
+    DAG_CATEGORY_FILTERS[0]
+  );
 }
 
 function normalizeDagCategoryKey(categoryKey) {
   const key = String(categoryKey || "all");
-  return DAG_CATEGORY_FILTERS.some((category) => category.key === key) ? key : "all";
+  return DAG_CATEGORY_FILTERS.some((category) => category.key === key)
+    ? key
+    : "all";
 }
 
 function normalizeDagTag(tag) {
@@ -471,7 +518,10 @@ async function selectDag(dag, { restoreState = {} } = {}) {
   await refreshSelectedDag({ restoreState });
 }
 
-async function refreshSelectedDag({ restoreState = {}, keepSelection = false } = {}) {
+async function refreshSelectedDag({
+  restoreState = {},
+  keepSelection = false,
+} = {}) {
   if (!state.selectedDag) {
     return;
   }
@@ -489,14 +539,21 @@ async function refreshSelectedDag({ restoreState = {}, keepSelection = false } =
     renderSelectedDag();
     renderRuns();
 
-    const preferredRunId = restoreState.selectedDagRunId || (keepSelection && state.selectedRun?.dag_run_id);
+    const preferredRunId =
+      restoreState.selectedDagRunId ||
+      (keepSelection && state.selectedRun?.dag_run_id);
     const nextRun =
-      state.dagRuns.find((run) => run.dag_run_id === preferredRunId) || state.dagRuns[0] || null;
+      state.dagRuns.find((run) => run.dag_run_id === preferredRunId) ||
+      state.dagRuns[0] ||
+      null;
 
     if (nextRun) {
       await selectRun(nextRun, {
-        preferredTaskId: restoreState.selectedTaskId || (keepSelection && state.selectedTask?.task_id),
-        preferredTryNumber: restoreState.tryNumber || (keepSelection && state.selectedTryNumber),
+        preferredTaskId:
+          restoreState.selectedTaskId ||
+          (keepSelection && state.selectedTask?.task_id),
+        preferredTryNumber:
+          restoreState.tryNumber || (keepSelection && state.selectedTryNumber),
         restored: Boolean(restoreState.selectedTaskId),
       });
       if (restoreState.selectedTaskId) {
@@ -520,7 +577,10 @@ function renderSelectedDag() {
   }
   elements.selectedDagTitle.textContent = state.selectedDag.dag_id;
   elements.selectedDagMeta.textContent =
-    state.selectedDag.description || `${state.selectedDag.owners.join(", ")} · ${state.selectedDag.fileloc || ""}`;
+    state.selectedDag.description ||
+    `${state.selectedDag.owners.join(", ")} · ${
+      state.selectedDag.fileloc || ""
+    }`;
   renderDagConfFields();
 }
 
@@ -555,18 +615,33 @@ function renderRuns() {
 
   elements.runList.innerHTML = state.dagRuns
     .map((run) => {
-      const activeClass = run.dag_run_id === state.selectedRun?.dag_run_id ? " active" : "";
+      const activeClass =
+        run.dag_run_id === state.selectedRun?.dag_run_id ? " active" : "";
       const confPreview = formatRunConfPreview(run.conf);
       const confTitle = formatRunConfTitle(run.conf);
       return `
-        <div class="run-row${activeClass}" role="button" tabindex="0" data-run-id="${escapeAttr(run.dag_run_id)}">
+        <div class="run-row${activeClass}" role="button" tabindex="0" data-run-id="${escapeAttr(
+        run.dag_run_id
+      )}">
           <div class="run-row-main">
             <span class="run-id">${escapeHtml(run.dag_run_id)}</span>
-            <span class="run-meta">${formatTime(run.execution_date)} · ${formatTime(run.start_date)} · ${escapeHtml(run.run_type || "-")}</span>
-            <span class="run-conf" data-conf-run-id="${escapeAttr(run.dag_run_id)}" title="${escapeAttr(confTitle)}">${escapeHtml(confPreview)}</span>
-            <span class="tag-row"><span class="chip ${stateClass(run.state)}">${escapeHtml(run.state || "unknown")}</span></span>
+            <span class="run-meta">${formatTime(
+              run.execution_date
+            )} · ${formatTime(run.start_date)} · ${escapeHtml(
+        run.run_type || "-"
+      )}</span>
+            <span class="run-conf" data-conf-run-id="${escapeAttr(
+              run.dag_run_id
+            )}" title="${escapeAttr(confTitle)}">${escapeHtml(
+        confPreview
+      )}</span>
+            <span class="tag-row"><span class="chip ${stateClass(
+              run.state
+            )}">${escapeHtml(run.state || "unknown")}</span></span>
           </div>
-          <button class="icon-button small run-conf-button" type="button" data-conf-run-id="${escapeAttr(run.dag_run_id)}" title="查看并复制 Run Conf">
+          <button class="icon-button small run-conf-button" type="button" data-conf-run-id="${escapeAttr(
+            run.dag_run_id
+          )}" title="查看并复制 Run Conf">
             <svg><use href="#icon-copy"></use></svg>
           </button>
         </div>
@@ -576,7 +651,9 @@ function renderRuns() {
 
   elements.runList.querySelectorAll(".run-row").forEach((row) => {
     const chooseRun = () => {
-      const run = state.dagRuns.find((item) => item.dag_run_id === row.dataset.runId);
+      const run = state.dagRuns.find(
+        (item) => item.dag_run_id === row.dataset.runId
+      );
       if (run) {
         selectRun(run);
       }
@@ -590,15 +667,19 @@ function renderRuns() {
     });
   });
 
-  elements.runList.querySelectorAll(".run-conf-button, .run-conf").forEach((button) => {
-    button.addEventListener("click", (event) => {
-      event.stopPropagation();
-      const run = state.dagRuns.find((item) => item.dag_run_id === button.dataset.confRunId);
-      if (run) {
-        openRunConfModal(run);
-      }
+  elements.runList
+    .querySelectorAll(".run-conf-button, .run-conf")
+    .forEach((button) => {
+      button.addEventListener("click", (event) => {
+        event.stopPropagation();
+        const run = state.dagRuns.find(
+          (item) => item.dag_run_id === button.dataset.confRunId
+        );
+        if (run) {
+          openRunConfModal(run);
+        }
+      });
     });
-  });
 }
 
 function openRunConfModal(run) {
@@ -645,7 +726,10 @@ async function copyText(text) {
   }
 }
 
-async function selectRun(run, { preferredTaskId = "", preferredTryNumber = "", restored = false } = {}) {
+async function selectRun(
+  run,
+  { preferredTaskId = "", preferredTryNumber = "", restored = false } = {}
+) {
   state.selectedRun = run;
   state.selectedTask = null;
   state.taskTries = [];
@@ -661,10 +745,20 @@ async function selectRun(run, { preferredTaskId = "", preferredTryNumber = "", r
 
   try {
     await refreshTaskInstances();
-    const preferredTask = state.taskInstances.find((task) => task.task_id === preferredTaskId);
-    const nextTask = preferredTask || pickCurrentTask(state.taskInstances) || state.taskInstances[0] || null;
+    const preferredTask = state.taskInstances.find(
+      (task) => task.task_id === preferredTaskId
+    );
+    const nextTask =
+      preferredTask ||
+      pickCurrentTask(state.taskInstances) ||
+      state.taskInstances[0] ||
+      null;
     if (nextTask) {
-      await selectTask(nextTask, { resetLog: true, restored, preferredTryNumber });
+      await selectTask(nextTask, {
+        resetLog: true,
+        restored,
+        preferredTryNumber,
+      });
     } else {
       renderTasks();
       renderLog();
@@ -686,7 +780,7 @@ async function refreshTaskInstances() {
   }
   const result = await api.listTaskInstances(
     state.selectedDag.dag_id,
-    state.selectedRun.dag_run_id,
+    state.selectedRun.dag_run_id
   );
   state.taskInstances = result.task_instances || [];
   renderTasks();
@@ -712,20 +806,27 @@ function renderTasks() {
   elements.taskList.innerHTML = state.taskTries
     .map((taskTry) => {
       const tryNumber = Number(taskTry.try_number || 1);
-      const activeClass = tryNumber === Number(state.selectedTryNumber || 0) ? " active" : "";
+      const activeClass =
+        tryNumber === Number(state.selectedTryNumber || 0) ? " active" : "";
       const metaParts = [
         formatTime(taskTry.start_date),
         taskTry.end_date ? `ended ${formatTime(taskTry.end_date)}` : "",
         formatDuration(taskTry.duration),
       ].filter(Boolean);
       return `
-        <button class="task-row${activeClass}" type="button" data-try-number="${escapeAttr(tryNumber)}">
+        <button class="task-row${activeClass}" type="button" data-try-number="${escapeAttr(
+        tryNumber
+      )}">
           <span class="task-row-grid">
             <span>
               <span class="task-id">try ${escapeHtml(tryNumber)}</span>
-              <span class="task-meta">${escapeHtml(metaParts.join(" · ") || "尚无时间记录")}</span>
+              <span class="task-meta">${escapeHtml(
+                metaParts.join(" · ") || "尚无时间记录"
+              )}</span>
             </span>
-            <span class="chip ${stateClass(taskTry.state)}">${escapeHtml(taskTry.state || "none")}</span>
+            <span class="chip ${stateClass(taskTry.state)}">${escapeHtml(
+        taskTry.state || "none"
+      )}</span>
           </span>
         </button>
       `;
@@ -735,7 +836,8 @@ function renderTasks() {
   elements.taskList.querySelectorAll(".task-row").forEach((row) => {
     row.addEventListener("click", () => {
       const taskTry = state.taskTries.find(
-        (item) => Number(item.try_number || 1) === Number(row.dataset.tryNumber || 1),
+        (item) =>
+          Number(item.try_number || 1) === Number(row.dataset.tryNumber || 1)
       );
       if (taskTry) {
         selectTry(taskTry, { resetLog: true });
@@ -756,12 +858,15 @@ async function refreshTaskTries() {
       state.selectedDag.dag_id,
       state.selectedRun.dag_run_id,
       state.selectedTask.task_id,
-      state.selectedTask.map_index,
+      state.selectedTask.map_index
     );
     state.taskTries = result.task_tries || [];
   } catch (error) {
     state.taskTries = buildFallbackTaskTries(state.selectedTask);
-    showToast(`Task Tries 加载失败，已用 try_number 兜底：${error.message}`, "error");
+    showToast(
+      `Task Tries 加载失败，已用 try_number 兜底：${error.message}`,
+      "error"
+    );
   }
   renderTasks();
 }
@@ -778,7 +883,10 @@ function buildFallbackTaskTries(task) {
   }).sort((a, b) => Number(b.try_number || 0) - Number(a.try_number || 0));
 }
 
-async function selectTask(task, { resetLog = true, restored = false, preferredTryNumber = "" } = {}) {
+async function selectTask(
+  task,
+  { resetLog = true, restored = false, preferredTryNumber = "" } = {}
+) {
   const isSameTask = task.task_id === state.selectedTask?.task_id;
   state.selectedTask = task;
   if (resetLog) {
@@ -786,12 +894,17 @@ async function selectTask(task, { resetLog = true, restored = false, preferredTr
     state.logMeta = { offset: 0, endOfLog: false };
   }
   const desiredTryNumber = Number(
-    preferredTryNumber || (isSameTask && state.selectedTryNumber) || task.try_number || 1,
+    preferredTryNumber ||
+      (isSameTask && state.selectedTryNumber) ||
+      task.try_number ||
+      1
   );
   renderTasks();
   await refreshTaskTries();
   const nextTry =
-    state.taskTries.find((taskTry) => Number(taskTry.try_number || 1) === desiredTryNumber) ||
+    state.taskTries.find(
+      (taskTry) => Number(taskTry.try_number || 1) === desiredTryNumber
+    ) ||
     state.taskTries[0] ||
     task;
   state.selectedTryNumber = Number(nextTry.try_number || desiredTryNumber || 1);
@@ -799,8 +912,13 @@ async function selectTask(task, { resetLog = true, restored = false, preferredTr
   renderLog();
   saveLastView({
     selectedTaskId: task.task_id,
-    tryNumber: Math.max(1, Number(state.selectedTryNumber || task.try_number || 1)),
-    mapIndex: Number.isFinite(Number(task.map_index)) ? Number(task.map_index) : -1,
+    tryNumber: Math.max(
+      1,
+      Number(state.selectedTryNumber || task.try_number || 1)
+    ),
+    mapIndex: Number.isFinite(Number(task.map_index))
+      ? Number(task.map_index)
+      : -1,
   });
 
   if (state.selectedRun) {
@@ -845,12 +963,15 @@ async function triggerSelectedDag(event) {
     const run = await api.triggerDag(
       state.selectedDag.dag_id,
       conf,
-      elements.runIdInput.value.trim(),
+      elements.runIdInput.value.trim()
     );
     showToast(`已触发 ${run.dag_run_id}`);
     await api.notify(`Airflow DAG 已触发：${state.selectedDag.dag_id}`);
 
-    state.dagRuns = [run, ...state.dagRuns.filter((item) => item.dag_run_id !== run.dag_run_id)];
+    state.dagRuns = [
+      run,
+      ...state.dagRuns.filter((item) => item.dag_run_id !== run.dag_run_id),
+    ];
     renderRuns();
     await selectRun(run);
     startPolling();
@@ -863,7 +984,9 @@ async function triggerSelectedDag(event) {
 }
 
 function getConfFieldConfig(dagId) {
-  const mapping = DAG_CONF_FIELD_MAPPING.find((item) => item.dag_name === dagId);
+  const mapping = state.dagConfFieldMapping.find(
+    (item) => item.dag_name === dagId
+  );
   if (!mapping) {
     return [];
   }
@@ -900,7 +1023,7 @@ function renderDagConfFields() {
                 autocomplete="off"
               />
             </label>
-          `,
+          `
         )
         .join("")}
     </div>
@@ -939,9 +1062,9 @@ function buildDagRunConf() {
 }
 
 function findConfInput(key) {
-  return [...elements.mappedConfFields.querySelectorAll("[data-conf-key]")].find(
-    (input) => input.dataset.confKey === key,
-  );
+  return [
+    ...elements.mappedConfFields.querySelectorAll("[data-conf-key]"),
+  ].find((input) => input.dataset.confKey === key);
 }
 
 async function terminateSelectedTask() {
@@ -956,7 +1079,7 @@ async function terminateSelectedTask() {
   const taskId = state.selectedTask.task_id;
   const runId = state.selectedRun.dag_run_id;
   const confirmed = window.confirm(
-    `确认终止当前 task 吗？\n\nDAG: ${state.selectedDag.dag_id}\nRun: ${runId}\nTask: ${taskId}\n\n此操作会将 task instance 标记为 failed。`,
+    `确认终止当前 task 吗？\n\nDAG: ${state.selectedDag.dag_id}\nRun: ${runId}\nTask: ${taskId}\n\n此操作会将 task instance 标记为 failed。`
   );
   if (!confirmed) {
     return;
@@ -978,16 +1101,20 @@ async function terminateSelectedTask() {
     showToast(`已终止 task：${taskId}`);
     await api.notify(`Airflow task 已终止：${taskId}`);
 
-    const freshRun = await api.getDagRun(state.selectedDag.dag_id, runId).catch(() => null);
+    const freshRun = await api
+      .getDagRun(state.selectedDag.dag_id, runId)
+      .catch(() => null);
     if (freshRun) {
       state.selectedRun = { ...state.selectedRun, ...freshRun };
       state.dagRuns = state.dagRuns.map((run) =>
-        run.dag_run_id === runId ? { ...run, ...state.selectedRun } : run,
+        run.dag_run_id === runId ? { ...run, ...state.selectedRun } : run
       );
     }
 
     await refreshTaskInstances();
-    const updatedTask = state.taskInstances.find((task) => task.task_id === taskId);
+    const updatedTask = state.taskInstances.find(
+      (task) => task.task_id === taskId
+    );
     if (updatedTask) {
       state.selectedTask = updatedTask;
     }
@@ -995,12 +1122,17 @@ async function terminateSelectedTask() {
     await loadLog({ reset: true });
     renderRuns();
 
-    if (!terminalStates.has(String(state.selectedRun?.state || "").toLowerCase())) {
+    if (
+      !terminalStates.has(String(state.selectedRun?.state || "").toLowerCase())
+    ) {
       startPolling();
     }
   } catch (error) {
     showToast(`终止 task 失败：${error.message}`, "error");
-    if (state.selectedRun && !terminalStates.has(String(state.selectedRun.state || "").toLowerCase())) {
+    if (
+      state.selectedRun &&
+      !terminalStates.has(String(state.selectedRun.state || "").toLowerCase())
+    ) {
       startPolling();
     }
   } finally {
@@ -1040,12 +1172,12 @@ async function pollSelectedRun() {
       ...freshRun,
     };
     state.dagRuns = state.dagRuns.map((run) =>
-      run.dag_run_id === runId ? { ...run, ...state.selectedRun } : run,
+      run.dag_run_id === runId ? { ...run, ...state.selectedRun } : run
     );
 
     const activeTask = pickCurrentTask(state.taskInstances);
     const selectedFreshTask = state.taskInstances.find(
-      (task) => task.task_id === state.selectedTask?.task_id,
+      (task) => task.task_id === state.selectedTask?.task_id
     );
     if (
       state.autoFollowTask &&
@@ -1065,7 +1197,9 @@ async function pollSelectedRun() {
     renderLogHeader();
     saveLastView();
 
-    if (terminalStates.has(String(state.selectedRun.state || "").toLowerCase())) {
+    if (
+      terminalStates.has(String(state.selectedRun.state || "").toLowerCase())
+    ) {
       await loadLog({ reset: false });
       stopPolling();
       showToast(`Run 已结束：${state.selectedRun.state}`);
@@ -1090,7 +1224,10 @@ async function loadLog({ reset = false } = {}) {
     taskId: state.selectedTask.task_id,
     executionDate: state.selectedRun.execution_date,
     offset,
-    tryNumber: Math.max(1, Number(state.selectedTryNumber || state.selectedTask.try_number || 1)),
+    tryNumber: Math.max(
+      1,
+      Number(state.selectedTryNumber || state.selectedTask.try_number || 1)
+    ),
     mapIndex: Number.isFinite(Number(state.selectedTask.map_index))
       ? Number(state.selectedTask.map_index)
       : -1,
@@ -1106,7 +1243,8 @@ async function loadLog({ reset = false } = {}) {
     } else if (reset) {
       state.logText = logChunk || "(暂无日志)";
     } else if (logChunk && nextOffset !== offset) {
-      state.logText = state.logText === "(暂无日志)" ? logChunk : state.logText + logChunk;
+      state.logText =
+        state.logText === "(暂无日志)" ? logChunk : state.logText + logChunk;
     }
     state.logMeta = {
       offset: nextOffset,
@@ -1130,7 +1268,9 @@ function pickCurrentTask(tasks) {
   const withPriority = tasks
     .map((task) => ({
       task,
-      priority: activeStatePriority.indexOf(String(task.state || "none").toLowerCase()),
+      priority: activeStatePriority.indexOf(
+        String(task.state || "none").toLowerCase()
+      ),
     }))
     .filter((item) => item.priority !== -1)
     .sort((a, b) => a.priority - b.priority);
@@ -1148,7 +1288,9 @@ function pickCurrentTask(tasks) {
 
 function renderLog() {
   renderLogHeader();
-  elements.logViewer.innerHTML = renderLogLines(state.logText || "等待 task log...");
+  elements.logViewer.innerHTML = renderLogLines(
+    state.logText || "等待 task log..."
+  );
   if (state.autoTail) {
     requestAnimationFrame(() => {
       elements.logViewer.scrollTop = elements.logViewer.scrollHeight;
@@ -1161,19 +1303,24 @@ function renderLogLines(rawText) {
     .map((line) => {
       const level = detectLogLevel(line);
       const emptyClass = line.trim() ? "" : " log-line-empty";
-      return `<div class="log-line log-line-${level}${emptyClass}">${escapeHtml(line || " ")}</div>`;
+      return `<div class="log-line log-line-${level}${emptyClass}">${escapeHtml(
+        line || " "
+      )}</div>`;
     })
     .join("");
 }
 
 function getSelectedTry() {
   return state.taskTries.find(
-    (taskTry) => Number(taskTry.try_number || 1) === Number(state.selectedTryNumber || 0),
+    (taskTry) =>
+      Number(taskTry.try_number || 1) === Number(state.selectedTryNumber || 0)
   );
 }
 
 function splitLogLines(rawText) {
-  const normalized = String(rawText || "").replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+  const normalized = String(rawText || "")
+    .replace(/\r\n/g, "\n")
+    .replace(/\r/g, "\n");
   const lines = normalized.split("\n");
   while (lines.length > 1 && !lines[lines.length - 1].trim()) {
     lines.pop();
@@ -1183,7 +1330,9 @@ function splitLogLines(rawText) {
 
 function detectLogLevel(line) {
   const text = String(line || "").toLowerCase();
-  const explicitLevel = text.match(/\b(critical|fatal|error|warning|warn|info|debug)\b/);
+  const explicitLevel = text.match(
+    /\b(critical|fatal|error|warning|warn|info|debug)\b/
+  );
   if (explicitLevel) {
     const level = explicitLevel[1];
     if (level === "critical" || level === "fatal" || level === "error") {
@@ -1203,7 +1352,10 @@ function detectLogLevel(line) {
   if (/\b(retry)\b/.test(text)) {
     return "warning";
   }
-  if (/\b(success|succeeded|complete|completed|done)\b/.test(text) || text.includes("成功")) {
+  if (
+    /\b(success|succeeded|complete|completed|done)\b/.test(text) ||
+    text.includes("成功")
+  ) {
     return "success";
   }
   return "default";
@@ -1220,19 +1372,32 @@ function renderLogHeader() {
   elements.logContextText.textContent = `${state.selectedDag.dag_id} / ${runText} / ${state.selectedTask.task_id}`;
   const chips = [];
   if (state.selectedRun) {
-    chips.push(`<span class="chip ${stateClass(state.selectedRun.state)}">run ${escapeHtml(state.selectedRun.state)}</span>`);
+    chips.push(
+      `<span class="chip ${stateClass(
+        state.selectedRun.state
+      )}">run ${escapeHtml(state.selectedRun.state)}</span>`
+    );
   }
   if (state.selectedTask.state) {
-    chips.push(`<span class="chip ${stateClass(state.selectedTask.state)}">task ${escapeHtml(state.selectedTask.state)}</span>`);
+    chips.push(
+      `<span class="chip ${stateClass(
+        state.selectedTask.state
+      )}">task ${escapeHtml(state.selectedTask.state)}</span>`
+    );
   }
   const selectedTry = getSelectedTry();
   const selectedTryState = selectedTry?.state || state.selectedTask.state || "";
   const tryClass = selectedTryState ? stateClass(selectedTryState) : "";
   chips.push(
-    `<span class="chip ${tryClass}">try ${Math.max(1, Number(state.selectedTryNumber || state.selectedTask.try_number || 1))}</span>`,
+    `<span class="chip ${tryClass}">try ${Math.max(
+      1,
+      Number(state.selectedTryNumber || state.selectedTask.try_number || 1)
+    )}</span>`
   );
   if (state.logMeta.source) {
-    chips.push(`<span class="chip">log ${escapeHtml(state.logMeta.source)}</span>`);
+    chips.push(
+      `<span class="chip">log ${escapeHtml(state.logMeta.source)}</span>`
+    );
   }
   elements.statusStrip.innerHTML = chips.join("");
 }
@@ -1247,10 +1412,14 @@ function saveLastView(extra = {}) {
     executionDate: state.selectedRun?.execution_date || "",
     dagCategory: state.dagCategory,
     tryNumber: state.selectedTask
-      ? Math.max(1, Number(state.selectedTryNumber || state.selectedTask.try_number || 1))
+      ? Math.max(
+          1,
+          Number(state.selectedTryNumber || state.selectedTask.try_number || 1)
+        )
       : 1,
     mapIndex:
-      state.selectedTask && Number.isFinite(Number(state.selectedTask.map_index))
+      state.selectedTask &&
+      Number.isFinite(Number(state.selectedTask.map_index))
         ? Number(state.selectedTask.map_index)
         : -1,
     logOffset: state.logMeta.offset || 0,
@@ -1263,7 +1432,9 @@ function saveLastView(extra = {}) {
 }
 
 function renderError(container, error) {
-  container.innerHTML = `<div class="error-state">${escapeHtml(error.message || String(error))}</div>`;
+  container.innerHTML = `<div class="error-state">${escapeHtml(
+    error.message || String(error)
+  )}</div>`;
 }
 
 function showToast(message, type = "default") {
@@ -1312,7 +1483,12 @@ function formatDuration(value) {
 }
 
 function formatRunConfPreview(conf) {
-  if (!conf || (typeof conf === "object" && !Array.isArray(conf) && !Object.keys(conf).length)) {
+  if (
+    !conf ||
+    (typeof conf === "object" &&
+      !Array.isArray(conf) &&
+      !Object.keys(conf).length)
+  ) {
     return "{}";
   }
   try {
@@ -1323,7 +1499,12 @@ function formatRunConfPreview(conf) {
 }
 
 function formatRunConfTitle(conf) {
-  if (!conf || (typeof conf === "object" && !Array.isArray(conf) && !Object.keys(conf).length)) {
+  if (
+    !conf ||
+    (typeof conf === "object" &&
+      !Array.isArray(conf) &&
+      !Object.keys(conf).length)
+  ) {
     return "{}";
   }
   try {

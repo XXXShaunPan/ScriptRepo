@@ -73,6 +73,7 @@ function activePublicConfig() {
   return {
     ...airflow.publicConfig,
     services: publicAirflowServices(),
+    dagConfFieldMapping: config.dagConfFieldMapping,
     defaultServiceId: config.defaultAirflowServiceId,
   };
 }

@@ -13,7 +13,7 @@
 ## 运行
 
 ```bash
-cd /Users/shaun.pan/shaun/airflow_gui_tool
+cd /Users/shaun.pan/shaun/projects_sync_to_github/airflow_gui_tool
 npm install
 npm start
 ```
@@ -30,3 +30,21 @@ AIRFLOW_ACTIVE_SERVICE_ID=main
 ```
 
 `AIRFLOW_LIST` 是 JSON 数组，后续有多个 Airflow 服务时继续追加对象即可。每个服务的 `id` 必须唯一；`alias` 用于顶部下拉框展示；每个服务会按 `baseUrl + username` 单独缓存 cookie。
+
+如需为不同 DAG 定制 trigger conf 表单，把 `.dag-conf.env.example` 复制为 `.dag-conf.env` 后调整 `DAG_CONF_FIELD_MAPPING`：
+
+```bash
+cp .dag-conf.env.example .dag-conf.env
+```
+
+```env
+DAG_CONF_FIELD_MAPPING=[
+  {
+    "dag_name": "ads_credit_moniter",
+    "keys": ["location"],
+    "alias": ["站点"]
+  }
+]
+```
+
+`keys` 是提交到 Airflow 的 conf 字段名，`alias` 是输入框 placeholder 里的展示名。没有出现在 mapping 里的 DAG 会继续使用原始 JSON 输入框。
