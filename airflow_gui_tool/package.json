@@ -1,0 +1,15 @@
+{
+  "name": "airflow-gui-tool",
+  "version": "1.0.0",
+  "description": "A compact desktop GUI for Shaun-owned Airflow DAGs.",
+  "main": "main.js",
+  "author": "Shaun Pan",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron ."
+  },
+  "devDependencies": {
+    "electron": "^33.0.0"
+  }
+}

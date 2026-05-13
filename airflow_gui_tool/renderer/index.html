@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Airflow 精简工具</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <svg class="icon-sprite" aria-hidden="true">
+      <symbol id="icon-refresh" viewBox="0 0 24 24">
+        <path d="M21 12a9 9 0 0 1-15.4 6.4" />
+        <path d="M3 12A9 9 0 0 1 18.4 5.6" />
+        <path d="M18 2v4h-4" />
+        <path d="M6 22v-4h4" />
+      </symbol>
+      <symbol id="icon-play" viewBox="0 0 24 24">
+        <path d="M8 5v14l11-7z" />
+      </symbol>
+      <symbol id="icon-log" viewBox="0 0 24 24">
+        <path d="M4 5h16" />
+        <path d="M4 12h16" />
+        <path d="M4 19h10" />
+      </symbol>
+      <symbol id="icon-link" viewBox="0 0 24 24">
+        <path d="M10 13a5 5 0 0 0 7.1 0l2-2a5 5 0 0 0-7.1-7.1l-1.1 1.1" />
+        <path d="M14 11a5 5 0 0 0-7.1 0l-2 2A5 5 0 0 0 12 20l1.1-1.1" />
+      </symbol>
+      <symbol id="icon-trash" viewBox="0 0 24 24">
+        <path d="M3 6h18" />
+        <path d="M8 6V4h8v2" />
+        <path d="M19 6l-1 14H6L5 6" />
+      </symbol>
+      <symbol id="icon-stop" viewBox="0 0 24 24">
+        <path d="M8.6 2h6.8L22 8.6v6.8L15.4 22H8.6L2 15.4V8.6L8.6 2z" />
+        <path d="M9 9l6 6" />
+        <path d="M15 9l-6 6" />
+      </symbol>
+      <symbol id="icon-copy" viewBox="0 0 24 24">
+        <path d="M8 8h10v12H8z" />
+        <path d="M6 16H4V4h12v2" />
+      </symbol>
+    </svg>
+
+    <div class="app-shell">
+      <header class="topbar">
+        <div>
+          <h1>Airflow 精简工具</h1>
+          <div class="connection-control">
+            <select id="airflowServiceSelect" class="connection-select" title="选择 Airflow 服务">
+              <option>连接中</option>
+            </select>
+            <span id="connectionText" class="connection-status">连接中</span>
+          </div>
+        </div>
+        <div class="topbar-actions">
+          <label class="inline-field">
+            <span>Owner</span>
+            <input id="ownerInput" type="text" value="Shaun" autocomplete="off" />
+          </label>
+          <button id="reloginButton" class="button ghost" type="button" title="重新登录 Airflow">
+            <svg><use href="#icon-link"></use></svg>
+            重连
+          </button>
+          <button id="refreshAllButton" class="button primary" type="button" title="刷新 DAG 列表">
+            <svg><use href="#icon-refresh"></use></svg>
+            刷新
+          </button>
+        </div>
+      </header>
+
+      <nav id="dagCategoryBar" class="category-bar" aria-label="DAG 分类"></nav>
+
+      <main class="workspace">
+        <section class="pane dag-pane" aria-label="DAG 列表">
+          <div class="pane-header">
+            <div>
+              <h2>DAGs</h2>
+              <p id="dagCountText">0 items</p>
+            </div>
+            <input id="dagSearchInput" class="search-input" type="search" placeholder="搜索 DAG" />
+          </div>
+          <div id="dagList" class="dag-list" role="list"></div>
+        </section>
+
+        <section class="pane detail-pane" aria-label="DAG 详情">
+          <div class="pane-header detail-title">
+            <div>
+              <h2 id="selectedDagTitle">选择一个 DAG</h2>
+              <p id="selectedDagMeta">等待加载</p>
+            </div>
+            <button id="refreshDagButton" class="icon-button" type="button" title="刷新当前 DAG">
+              <svg><use href="#icon-refresh"></use></svg>
+            </button>
+          </div>
+
+          <form id="triggerForm" class="trigger-form">
+            <div class="form-grid">
+              <label>
+                <span>dag_run_id</span>
+                <input id="runIdInput" type="text" placeholder="留空自动生成" autocomplete="off" />
+              </label>
+              <button id="triggerButton" class="button accent" type="submit">
+                <svg><use href="#icon-play"></use></svg>
+                Trigger
+              </button>
+            </div>
+            <div id="mappedConfFields" class="mapped-conf-fields" hidden></div>
+            <label id="confJsonField" class="conf-field">
+              <span>dag_run conf</span>
+              <textarea id="confInput" spellcheck="false">{}</textarea>
+            </label>
+          </form>
+
+          <div class="split-content">
+            <section class="subpanel">
+              <div class="subpanel-header">
+                <h3>Recent Runs</h3>
+                <span id="runStatusText">-</span>
+              </div>
+              <div id="runList" class="run-list"></div>
+            </section>
+
+            <section class="subpanel">
+              <div class="subpanel-header">
+                <h3>Task Tries</h3>
+                <span id="taskModeText">等待 task</span>
+              </div>
+              <div id="taskList" class="task-list"></div>
+            </section>
+          </div>
+        </section>
+
+        <section class="pane log-pane" aria-label="Task 日志">
+          <div class="pane-header log-title">
+            <div>
+              <h2>Task Log</h2>
+              <p id="logContextText">未选择 task</p>
+            </div>
+            <div class="log-actions">
+              <label class="toggle">
+                <input id="autoFollowToggle" type="checkbox" checked />
+                <span>跟随当前 task</span>
+              </label>
+              <label class="toggle">
+                <input id="autoTailToggle" type="checkbox" checked />
+                <span>自动滚动</span>
+              </label>
+              <button id="refreshLogButton" class="icon-button" type="button" title="刷新日志">
+                <svg><use href="#icon-refresh"></use></svg>
+              </button>
+              <button id="terminateTaskButton" class="button danger compact" type="button" title="终止当前 task">
+                <svg><use href="#icon-stop"></use></svg>
+                终止
+              </button>
+              <button id="clearLogButton" class="icon-button danger" type="button" title="清空日志显示">
+                <svg><use href="#icon-trash"></use></svg>
+              </button>
+            </div>
+          </div>
+          <div id="statusStrip" class="status-strip"></div>
+          <div id="logViewer" class="log-viewer" role="log">等待 task log...</div>
+        </section>
+      </main>
+    </div>
+
+    <div id="toastHost" class="toast-host" aria-live="polite"></div>
+    <div id="runConfModal" class="modal-backdrop" hidden>
+      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="runConfModalTitle">
+        <div class="modal-header">
+          <div>
+            <h2 id="runConfModalTitle">Run Conf</h2>
+            <p id="runConfModalMeta">未选择 run</p>
+          </div>
+          <div class="modal-actions">
+            <button id="copyRunConfButton" class="button ghost compact" type="button" title="复制当前 Run Conf">
+              <svg><use href="#icon-copy"></use></svg>
+              复制
+            </button>
+            <button id="closeRunConfModalButton" class="icon-button" type="button" title="关闭">×</button>
+          </div>
+        </div>
+        <pre id="runConfModalText" class="modal-json">{}</pre>
+      </div>
+    </div>
+    <script src="./renderer.js"></script>
+  </body>
+</html>
