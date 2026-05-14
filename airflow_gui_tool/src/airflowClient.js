@@ -3,6 +3,9 @@ const path = require("path");
 const config = require("./config");
 
 const TERMINAL_STATES = new Set(["success", "failed", "skipped", "upstream_failed", "removed"]);
+const ACTIVE_DAG_RUN_STATES = new Set(["running", "queued"]);
+const MAX_ACTIVE_DAG_RUNS_PER_DAG = 3;
+const DAG_TRIGGER_LIMIT_ERROR_PREFIX = "DAG_TRIGGER_LIMIT:";
 const DEFAULT_COOKIE_TTL_MS = 24 * 60 * 60 * 1000;
 
 class AirflowClient {
@@ -385,15 +388,7 @@ class AirflowClient {
     }, "dags");
     const ownerNeedle = String(owner || "").toLowerCase();
     const dags = (data.dags || [])
-      .map((dag) => ({
-        dag_id: dag.dag_id,
-        description: dag.description || "",
-        fileloc: dag.fileloc || "",
-        is_paused: Boolean(dag.is_paused),
-        is_active: dag.is_active !== false,
-        owners: this.normalizeOwners(dag),
-        tags: Array.isArray(dag.tags) ? dag.tags.map((tag) => tag.name || tag) : [],
-      }))
+      .map((dag) => this.normalizeDag(dag))
       .filter(
         (dag) =>
           !ownerNeedle ||
@@ -410,6 +405,25 @@ class AirflowClient {
       totalAirflow: Number(data.total_entries || data.dags?.length || 0),
       owner,
     };
+  }
+
+  normalizeDag(dag) {
+    return {
+      dag_id: dag.dag_id,
+      description: dag.description || "",
+      fileloc: dag.fileloc || "",
+      is_paused: Boolean(dag.is_paused),
+      is_active: dag.is_active !== false,
+      owners: this.normalizeOwners(dag),
+      tags: Array.isArray(dag.tags) ? dag.tags.map((tag) => tag.name || tag) : [],
+    };
+  }
+
+  async setDagPaused(dagId, isPaused) {
+    const data = await this.apiPatch(`/api/v1/dags/${encodeURIComponent(dagId)}?update_mask=is_paused`, {
+      is_paused: Boolean(isPaused),
+    });
+    return this.normalizeDag(data);
   }
 
   async listTasks(dagId) {
@@ -442,6 +456,68 @@ class AirflowClient {
       .map((run) => this.normalizeDagRun(run))
       .sort((a, b) => String(b.execution_date || "").localeCompare(String(a.execution_date || "")));
     return { dag_runs: dagRuns };
+  }
+
+  async listActiveDagRuns(dagId, limit = MAX_ACTIVE_DAG_RUNS_PER_DAG + 1) {
+    const path = `/api/v1/dags/${encodeURIComponent(dagId)}/dagRuns`;
+    const activeRunsById = new Map();
+
+    try {
+      for (const state of ACTIVE_DAG_RUN_STATES) {
+        let data;
+        try {
+          data = await this.apiGet(path, {
+            limit,
+            state,
+            order_by: "-execution_date",
+          });
+        } catch {
+          data = await this.apiGet(path, { limit, state });
+        }
+
+        const normalizedRuns = (data.dag_runs || []).map((run) => this.normalizeDagRun(run));
+        if (normalizedRuns.some((run) => run.state !== state)) {
+          throw new Error("Airflow dagRuns state filter was not applied");
+        }
+
+        for (const normalizedRun of normalizedRuns) {
+          if (ACTIVE_DAG_RUN_STATES.has(normalizedRun.state)) {
+            activeRunsById.set(normalizedRun.dag_run_id, normalizedRun);
+          }
+        }
+      }
+    } catch {
+      const fallback = await this.listDagRuns(dagId, 100);
+      for (const run of fallback.dag_runs || []) {
+        if (ACTIVE_DAG_RUN_STATES.has(run.state)) {
+          activeRunsById.set(run.dag_run_id, run);
+        }
+      }
+    }
+
+    const dagRuns = [...activeRunsById.values()].sort((a, b) =>
+      String(b.execution_date || "").localeCompare(String(a.execution_date || "")),
+    );
+    return {
+      dag_runs: dagRuns,
+      count: dagRuns.length,
+      max_allowed: MAX_ACTIVE_DAG_RUNS_PER_DAG,
+    };
+  }
+
+  async assertCanTriggerDag(dagId) {
+    const activeRuns = await this.listActiveDagRuns(dagId);
+    if (activeRuns.count < MAX_ACTIVE_DAG_RUNS_PER_DAG) {
+      return activeRuns;
+    }
+
+    const sampleRunIds = activeRuns.dag_runs
+      .slice(0, MAX_ACTIVE_DAG_RUNS_PER_DAG)
+      .map((run) => `${run.dag_run_id}(${run.state})`)
+      .join("、");
+    throw new Error(
+      `${DAG_TRIGGER_LIMIT_ERROR_PREFIX} ${dagId} 当前已有 ${activeRuns.count} 个 running/queued 任务，最多允许 ${MAX_ACTIVE_DAG_RUNS_PER_DAG} 个同时存在。请等待已有任务结束后再触发。${sampleRunIds ? `当前任务：${sampleRunIds}` : ""}`,
+    );
   }
 
   async getDagRun(dagId, dagRunId) {
@@ -508,6 +584,7 @@ class AirflowClient {
   }
 
   async triggerDag(dagId, conf = {}, runId = "") {
+    await this.assertCanTriggerDag(dagId);
     const nextRunId = runId || `gui_${new Date().toISOString().replace(/[:.]/g, "-")}`;
     const data = await this.apiPost(`/api/v1/dags/${encodeURIComponent(dagId)}/dagRuns`, {
       conf,

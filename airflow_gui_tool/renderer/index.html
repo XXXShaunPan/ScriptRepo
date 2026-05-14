@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Airflow 精简工具</title>
+    <title>Lovito 任务中心</title>
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
@@ -40,31 +40,71 @@
         <path d="M8 8h10v12H8z" />
         <path d="M6 16H4V4h12v2" />
       </symbol>
+      <symbol id="icon-info" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="9" />
+        <path d="M12 10v7" />
+        <path d="M12 7h.01" />
+      </symbol>
     </svg>
 
     <div class="app-shell">
       <header class="topbar">
-        <div>
-          <h1>Airflow 精简工具</h1>
-          <div class="connection-control">
-            <select id="airflowServiceSelect" class="connection-select" title="选择 Airflow 服务">
-              <option>连接中</option>
-            </select>
-            <span id="connectionText" class="connection-status">连接中</span>
+        <div class="brand-area">
+          <div class="brand-mark" aria-hidden="true">L</div>
+          <div class="brand-copy">
+            <div class="brand-kicker">Airflow Task Hub</div>
+            <h1>
+              <span class="brand-name">Lovito</span>
+              <span class="brand-title">任务中心</span>
+            </h1>
+            <div class="connection-control">
+              <select
+                id="airflowServiceSelect"
+                class="connection-select"
+                title="选择 Airflow 服务"
+              >
+                <option>连接中</option>
+              </select>
+              <span id="connectionText" class="connection-status">连接中</span>
+            </div>
           </div>
         </div>
         <div class="topbar-actions">
           <label class="inline-field">
             <span>Owner</span>
-            <input id="ownerInput" type="text" value="Shaun" autocomplete="off" />
+            <input
+              id="ownerInput"
+              type="text"
+              value="Shaun"
+              autocomplete="off"
+            />
           </label>
-          <button id="reloginButton" class="button ghost" type="button" title="重新登录 Airflow">
+          <button
+            id="reloginButton"
+            class="button ghost"
+            type="button"
+            title="重新登录 Airflow"
+          >
             <svg><use href="#icon-link"></use></svg>
             重连
           </button>
-          <button id="refreshAllButton" class="button primary" type="button" title="刷新 DAG 列表">
+          <button
+            id="refreshAllButton"
+            class="button primary"
+            type="button"
+            title="刷新 DAG 列表"
+          >
             <svg><use href="#icon-refresh"></use></svg>
             刷新
+          </button>
+          <button
+            id="guideTipsButton"
+            class="button ghost"
+            type="button"
+            title="查看使用说明"
+          >
+            <svg><use href="#icon-info"></use></svg>
+            帮助
           </button>
         </div>
       </header>
@@ -78,7 +118,12 @@
               <h2>DAGs</h2>
               <p id="dagCountText">0 items</p>
             </div>
-            <input id="dagSearchInput" class="search-input" type="search" placeholder="搜索 DAG" />
+            <input
+              id="dagSearchInput"
+              class="search-input"
+              type="search"
+              placeholder="搜索 DAG"
+            />
           </div>
           <div id="dagList" class="dag-list" role="list"></div>
         </section>
@@ -89,16 +134,28 @@
               <h2 id="selectedDagTitle">选择一个 DAG</h2>
               <p id="selectedDagMeta">等待加载</p>
             </div>
-            <button id="refreshDagButton" class="icon-button" type="button" title="刷新当前 DAG">
-              <svg><use href="#icon-refresh"></use></svg>
-            </button>
+            <div class="dag-title-actions">
+              <button
+                id="refreshDagButton"
+                class="icon-button"
+                type="button"
+                title="刷新当前 DAG"
+              >
+                <svg><use href="#icon-refresh"></use></svg>
+              </button>
+            </div>
           </div>
 
           <form id="triggerForm" class="trigger-form">
             <div class="form-grid">
               <label>
                 <span>dag_run_id</span>
-                <input id="runIdInput" type="text" placeholder="留空自动生成" autocomplete="off" />
+                <input
+                  id="runIdInput"
+                  type="text"
+                  placeholder="留空自动生成"
+                  autocomplete="off"
+                />
               </label>
               <button id="triggerButton" class="button accent" type="submit">
                 <svg><use href="#icon-play"></use></svg>
@@ -146,38 +203,238 @@
                 <input id="autoTailToggle" type="checkbox" checked />
                 <span>自动滚动</span>
               </label>
-              <button id="refreshLogButton" class="icon-button" type="button" title="刷新日志">
+              <button
+                id="refreshLogButton"
+                class="icon-button"
+                type="button"
+                title="刷新日志"
+              >
                 <svg><use href="#icon-refresh"></use></svg>
               </button>
-              <button id="terminateTaskButton" class="button danger compact" type="button" title="终止当前 task">
+              <button
+                id="terminateTaskButton"
+                class="button danger compact"
+                type="button"
+                title="终止当前 task"
+              >
                 <svg><use href="#icon-stop"></use></svg>
                 终止
               </button>
-              <button id="clearLogButton" class="icon-button danger" type="button" title="清空日志显示">
+              <button
+                id="clearLogButton"
+                class="icon-button danger"
+                type="button"
+                title="清空日志显示"
+              >
                 <svg><use href="#icon-trash"></use></svg>
               </button>
             </div>
           </div>
           <div id="statusStrip" class="status-strip"></div>
-          <div id="logViewer" class="log-viewer" role="log">等待 task log...</div>
+          <div id="logViewer" class="log-viewer" role="log">
+            等待 task log...
+          </div>
         </section>
       </main>
     </div>
 
     <div id="toastHost" class="toast-host" aria-live="polite"></div>
+    <div id="guideTipsModal" class="modal-backdrop" hidden>
+      <div
+        class="modal guide-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="guideTipsTitle"
+      >
+        <div class="modal-header guide-header">
+          <div>
+            <h2 id="guideTipsTitle">使用指南</h2>
+            <p>第一次打开会自动展示；之后可通过右上角“帮助”再次查看。</p>
+          </div>
+          <div class="modal-actions">
+            <button
+              id="confirmGuideTipsButton"
+              class="button primary compact"
+              type="button"
+            >
+              知道了
+            </button>
+            <button
+              id="closeGuideTipsButton"
+              class="icon-button"
+              type="button"
+              title="关闭"
+            >
+              ×
+            </button>
+          </div>
+        </div>
+        <div class="guide-body">
+          <section class="guide-hero">
+            <div>
+              <p class="guide-kicker">Lovito Task Hub</p>
+              <h3>把常用 Airflow 操作收进一个轻量窗口</h3>
+            </div>
+            <p>
+              这里可以筛选 DAG、触发任务、查看 runs / tries / logs，也可以在任务运行后关闭程序，之后再回来继续看日志。
+            </p>
+          </section>
+
+          <div class="guide-visuals" aria-label="界面区域示意图">
+            <figure class="guide-visual-card">
+              <div class="guide-shot guide-shot-dags" aria-hidden="true">
+                <div class="shot-toolbar">
+                  <span class="shot-tab active">全部 <b>43</b></span>
+                  <span class="shot-tab">Paid Ads <b>38</b></span>
+                  <span class="shot-tab">Listing <b>1</b></span>
+                </div>
+                <div class="shot-panel">
+                  <div class="shot-title">DAGs</div>
+                  <div class="shot-row active">
+                    <span class="shot-switch on"></span>
+                    <span>
+                      <strong>ads_credit_monitor</strong>
+                      <em>ads余额定时获取</em>
+                      <small>Shaun · Paid Ads · active</small>
+                    </span>
+                  </div>
+                  <div class="shot-row">
+                    <span class="shot-switch"></span>
+                    <span>
+                      <strong>ads_cspu_create</strong>
+                      <em>ads CSPU 新品创建</em>
+                      <small>Shaun · Paid Ads · paused</small>
+                    </span>
+                  </div>
+                </div>
+              </div>
+              <figcaption>DAG 列表支持分类、搜索、开关和状态查看。</figcaption>
+            </figure>
+
+            <figure class="guide-visual-card">
+              <div class="guide-shot guide-shot-trigger" aria-hidden="true">
+                <div class="shot-panel">
+                  <div class="shot-detail-head">
+                    <strong>ads_credit_monitor</strong>
+                    <span class="shot-trigger-button">Trigger</span>
+                  </div>
+                  <div class="shot-input">shaun.pan_YYYYMMDD_HHMMSS</div>
+                  <div class="shot-field-grid">
+                    <span>请输入 站点</span>
+                    <span>请输入 站点2</span>
+                    <span>请输入 站点3</span>
+                    <span>请输入 站点4</span>
+                  </div>
+                  <div class="shot-runs">
+                    <strong>Recent Runs</strong>
+                    <span class="shot-run active">scheduled__2026-05-13T15:15</span>
+                    <span class="shot-run">scheduled__2026-05-13T15:00</span>
+                  </div>
+                </div>
+              </div>
+              <figcaption>触发区按 DAG 展示参数框；无参数字段时可保留默认 {}。</figcaption>
+            </figure>
+
+            <figure class="guide-visual-card">
+              <div class="guide-shot guide-shot-log" aria-hidden="true">
+                <div class="shot-log-head">
+                  <strong>Task Log</strong>
+                  <span>run success</span>
+                  <span>task success</span>
+                </div>
+                <div class="shot-log-body">
+                  <span>[2026-05-13T23:30:35] INFO - Starting attempt 1</span>
+                  <span>[2026-05-13T23:30:35] INFO - Running TaskInstance</span>
+                  <span>[2026-05-13T23:30:36] INFO - Done. Returned value was None</span>
+                  <span>[2026-05-13T23:30:36] INFO - Marking task as SUCCESS</span>
+                </div>
+              </div>
+              <figcaption>日志按等级着色，可横向滚动；关闭程序后也能回来继续看。</figcaption>
+            </figure>
+          </div>
+
+          <div class="guide-grid">
+            <section class="guide-card">
+              <h3>顶部区域</h3>
+              <p><strong>服务下拉</strong>：切换不同 Airflow 服务地址。</p>
+              <p><strong>Owner</strong>：按负责人过滤 DAG，默认 Shaun。</p>
+              <p><strong>重连</strong>：手动重新登录并刷新 cookie。</p>
+              <p><strong>刷新</strong>：重新加载 DAG 列表和远端 conf 配置。</p>
+            </section>
+
+            <section class="guide-card">
+              <h3>DAG 列表</h3>
+              <p><strong>分类按钮</strong>：按 tag 快速筛选 Paid Ads、Listing、买手、其他。</p>
+              <p><strong>搜索框</strong>：按 DAG 名称、描述、tag 搜索。</p>
+              <p><strong>左侧开关</strong>：启用或暂停 DAG，仅系统用户 shaun.pan 可操作。</p>
+            </section>
+
+            <section class="guide-card">
+              <h3>触发任务</h3>
+              <p><strong>dag_run_id</strong>：不填会自动使用系统用户名加当前时间生成。</p>
+              <p><strong>dag_run conf</strong>：有专属 fields 的 DAG 按输入框填写；没有 fields 的 DAG 可以不用填，保留默认 {} 即可。</p>
+              <p><strong>Trigger</strong>：触发前会检查当前 running / queued 任务，超过 3 个会弹窗提醒。</p>
+            </section>
+
+            <section class="guide-card">
+              <h3>Recent Runs</h3>
+              <p>展示最近运行记录，点击某条 run 可切换到对应任务详情。</p>
+              <p>run conf 会以摘要展示，点击摘要或复制按钮可打开大窗口查看并复制完整 JSON。</p>
+            </section>
+
+            <section class="guide-card">
+              <h3>Task Tries</h3>
+              <p>展示当前 run 下 task 的尝试记录，点击不同 try 可以切换查看对应日志。</p>
+              <p>这里适合排查重试、失败后重跑、以及同一 task 不同尝试之间的差异。</p>
+            </section>
+
+            <section class="guide-card">
+              <h3>Task Log</h3>
+              <p><strong>跟随当前 task</strong>：选择 run 后自动追踪当前最需要关注的 task。</p>
+              <p><strong>自动滚动</strong>：日志刷新后保持在底部。</p>
+              <p><strong>刷新 / 终止 / 清空</strong>：分别用于拉取日志、终止当前 task、清空当前窗口显示。</p>
+            </section>
+          </div>
+
+          <section class="guide-note">
+            <h3>任务运行不依赖这个窗口</h3>
+            <p>
+              Trigger 后任务是在 Airflow 服务器上运行，不是在本地 GUI 里运行。你可以关闭程序，之后再次打开会自动恢复到上一次查看的 DAG / run / task log 位置，继续追踪运行结果。
+            </p>
+          </section>
+        </div>
+      </div>
+    </div>
     <div id="runConfModal" class="modal-backdrop" hidden>
-      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="runConfModalTitle">
+      <div
+        class="modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="runConfModalTitle"
+      >
         <div class="modal-header">
           <div>
             <h2 id="runConfModalTitle">Run Conf</h2>
             <p id="runConfModalMeta">未选择 run</p>
           </div>
           <div class="modal-actions">
-            <button id="copyRunConfButton" class="button ghost compact" type="button" title="复制当前 Run Conf">
+            <button
+              id="copyRunConfButton"
+              class="button ghost compact"
+              type="button"
+              title="复制当前 Run Conf"
+            >
               <svg><use href="#icon-copy"></use></svg>
               复制
             </button>
-            <button id="closeRunConfModalButton" class="icon-button" type="button" title="关闭">×</button>
+            <button
+              id="closeRunConfModalButton"
+              class="icon-button"
+              type="button"
+              title="关闭"
+            >
+              ×
+            </button>
           </div>
         </div>
         <pre id="runConfModalText" class="modal-json">{}</pre>

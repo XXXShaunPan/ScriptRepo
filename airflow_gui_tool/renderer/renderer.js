@@ -45,6 +45,8 @@ const elements = {};
 const state = {
   config: null,
   dagConfFieldMapping: [],
+  systemUsername: "",
+  canToggleDag: false,
   lastView: {},
   owner: "Shaun",
   dags: [],
@@ -83,6 +85,7 @@ function cacheElements() {
     "ownerInput",
     "reloginButton",
     "refreshAllButton",
+    "guideTipsButton",
     "dagCategoryBar",
     "dagSearchInput",
     "dagCountText",
@@ -103,6 +106,9 @@ function cacheElements() {
     "runConfModalText",
     "copyRunConfButton",
     "closeRunConfModalButton",
+    "guideTipsModal",
+    "closeGuideTipsButton",
+    "confirmGuideTipsButton",
     "runList",
     "taskModeText",
     "taskList",
@@ -129,6 +135,8 @@ async function init() {
     const initData = await api.getInit();
     state.config = initData.config;
     state.dagConfFieldMapping = state.config.dagConfFieldMapping || [];
+    state.systemUsername = state.config.systemUsername || "";
+    state.canToggleDag = Boolean(state.config.canToggleDag);
     state.lastView = initData.state || {};
     state.owner = state.lastView.owner || state.config.owner || "Shaun";
     state.dagCategory = normalizeDagCategoryKey(
@@ -138,6 +146,7 @@ async function init() {
     state.autoFollowTask = state.lastView.autoFollowTask !== false;
 
     elements.ownerInput.value = state.owner;
+    elements.runIdInput.placeholder = `${formatDagRunIdUsername()}_YYYYMMDD_HHMMSS`;
     elements.autoTailToggle.checked = state.autoTail;
     elements.autoFollowToggle.checked = state.autoFollowTask;
     renderAirflowServiceOptions();
@@ -148,6 +157,7 @@ async function init() {
     renderError(elements.dagList, error);
   } finally {
     setBusy(false);
+    maybeOpenGuideTips();
   }
 }
 
@@ -155,6 +165,7 @@ function bindEvents() {
   elements.refreshAllButton.addEventListener("click", () =>
     refreshDags({ restore: false })
   );
+  elements.guideTipsButton.addEventListener("click", openGuideTips);
   elements.reloginButton.addEventListener("click", relogin);
   elements.refreshDagButton.addEventListener("click", () =>
     refreshSelectedDag({ keepSelection: true })
@@ -197,13 +208,27 @@ function bindEvents() {
   elements.triggerForm.addEventListener("submit", triggerSelectedDag);
   elements.copyRunConfButton.addEventListener("click", copySelectedRunConf);
   elements.closeRunConfModalButton.addEventListener("click", closeRunConfModal);
+  elements.closeGuideTipsButton.addEventListener("click", closeGuideTips);
+  elements.confirmGuideTipsButton.addEventListener("click", closeGuideTips);
   elements.runConfModal.addEventListener("click", (event) => {
     if (event.target === elements.runConfModal) {
       closeRunConfModal();
     }
   });
+  elements.guideTipsModal.addEventListener("click", (event) => {
+    if (event.target === elements.guideTipsModal) {
+      closeGuideTips();
+    }
+  });
   document.addEventListener("keydown", (event) => {
-    if (event.key === "Escape" && !elements.runConfModal.hidden) {
+    if (event.key !== "Escape") {
+      return;
+    }
+    if (!elements.guideTipsModal.hidden) {
+      closeGuideTips();
+      return;
+    }
+    if (!elements.runConfModal.hidden) {
       closeRunConfModal();
     }
   });
@@ -269,6 +294,8 @@ async function switchAirflowService(serviceId) {
     const result = await api.switchAirflowService(serviceId);
     state.config = result.config;
     state.dagConfFieldMapping = state.config.dagConfFieldMapping || [];
+    state.systemUsername = state.config.systemUsername || state.systemUsername;
+    state.canToggleDag = Boolean(state.config.canToggleDag);
     state.owner = state.config.owner || "Shaun";
     state.dags = [];
     state.staticTasks = [];
@@ -282,6 +309,7 @@ async function switchAirflowService(serviceId) {
     state.logText = "";
     state.logMeta = { offset: 0, endOfLog: false };
     elements.ownerInput.value = state.owner;
+    elements.runIdInput.placeholder = `${formatDagRunIdUsername()}_YYYYMMDD_HHMMSS`;
     renderAirflowServiceOptions();
     renderDagCategories();
     resetDetail();
@@ -325,6 +353,7 @@ async function refreshDags({ restore = false } = {}) {
   saveLastView({ owner: state.owner });
 
   try {
+    await reloadDagConfMapping();
     const result = await api.listDags(state.owner);
     state.dags = result.dags || [];
     renderDagCategories();
@@ -351,6 +380,20 @@ async function refreshDags({ restore = false } = {}) {
     showToast(`DAG 加载失败：${error.message}`, "error");
   } finally {
     setBusy(false);
+  }
+}
+
+async function reloadDagConfMapping() {
+  if (!api.reloadDagConfMapping) {
+    return;
+  }
+
+  try {
+    const result = await api.reloadDagConfMapping();
+    state.dagConfFieldMapping = result.dagConfFieldMapping || [];
+    renderDagConfFields();
+  } catch (error) {
+    showToast(`DAG conf 配置刷新失败：${error.message}`, "error");
   }
 }
 
@@ -384,25 +427,62 @@ function renderDagList() {
           ? `<span class="chip skipped">paused</span>`
           : `<span class="chip success">active</span>`,
       ].join("");
+      const switchClass = dag.is_paused ? " paused" : " active";
+      const switchLabel = dag.is_paused ? "启用 DAG" : "暂停 DAG";
       return `
-        <button class="dag-row${activeClass}" type="button" data-dag-id="${escapeAttr(
+        <div class="dag-row${activeClass}" role="button" tabindex="0" data-dag-id="${escapeAttr(
         dag.dag_id
       )}">
-          <span class="dag-id">${escapeHtml(dag.dag_id)}</span>
-          <span class="dag-description">${escapeHtml(
-            dag.description || dag.fileloc || "-"
-          )}</span>
-          <span class="tag-row">${tags}</span>
-        </button>
+          <button
+            class="dag-switch${switchClass}"
+            type="button"
+            data-dag-switch-id="${escapeAttr(dag.dag_id)}"
+            role="switch"
+            aria-checked="${dag.is_paused ? "false" : "true"}"
+            aria-label="${escapeAttr(switchLabel)}"
+            title="${escapeAttr(switchLabel)}"
+          >
+            <span></span>
+          </button>
+          <span class="dag-row-body">
+            <span class="dag-id">${escapeHtml(dag.dag_id)}</span>
+            <span class="dag-description">${escapeHtml(
+              dag.description || dag.fileloc || "-"
+            )}</span>
+            <span class="tag-row">${tags}</span>
+          </span>
+        </div>
       `;
     })
     .join("");
 
   elements.dagList.querySelectorAll(".dag-row").forEach((row) => {
-    row.addEventListener("click", () => {
+    const chooseDag = () => {
       const dag = state.dags.find((item) => item.dag_id === row.dataset.dagId);
       if (dag) {
         selectDag(dag);
+      }
+    };
+    row.addEventListener("click", chooseDag);
+    row.addEventListener("keydown", (event) => {
+      if (event.target.closest(".dag-switch")) {
+        return;
+      }
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        chooseDag();
+      }
+    });
+  });
+
+  elements.dagList.querySelectorAll(".dag-switch").forEach((button) => {
+    button.addEventListener("click", (event) => {
+      event.stopPropagation();
+      const dag = state.dags.find(
+        (item) => item.dag_id === button.dataset.dagSwitchId
+      );
+      if (dag) {
+        toggleDagPaused(dag, button);
       }
     });
   });
@@ -603,6 +683,42 @@ function resetDetail() {
   renderLog();
 }
 
+async function toggleDagPaused(dag, control) {
+  if (!state.canToggleDag) {
+    const message = `警报：当前系统用户 ${state.systemUsername || "unknown"} 无权操作 DAG 开关，仅 shaun.pan 可操作。`;
+    window.alert(message);
+    showToast(message, "error");
+    return;
+  }
+
+  const dagId = dag.dag_id;
+  const nextPaused = !Boolean(dag.is_paused);
+  if (control) {
+    control.disabled = true;
+  }
+  try {
+    const updatedDag = await api.setDagPaused(dagId, nextPaused);
+    state.dags = state.dags.map((dag) =>
+      dag.dag_id === dagId ? { ...dag, ...updatedDag } : dag
+    );
+    if (state.selectedDag?.dag_id === dagId) {
+      state.selectedDag = {
+        ...state.selectedDag,
+        ...updatedDag,
+      };
+      renderSelectedDag();
+    }
+    renderDagList();
+    showToast(`${dagId} 已${nextPaused ? "暂停" : "启用"}`);
+  } catch (error) {
+    showToast(`DAG 开关操作失败：${error.message}`, "error");
+  } finally {
+    if (control) {
+      control.disabled = false;
+    }
+  }
+}
+
 function renderRuns() {
   elements.runStatusText.textContent = state.selectedRun
     ? state.selectedRun.state
@@ -690,6 +806,33 @@ function openRunConfModal(run) {
 
 function closeRunConfModal() {
   elements.runConfModal.hidden = true;
+}
+
+function maybeOpenGuideTips() {
+  if (!state.lastView.guideTipsSeen) {
+    openGuideTips();
+  }
+}
+
+function openGuideTips() {
+  elements.guideTipsModal.hidden = false;
+  requestAnimationFrame(() => {
+    elements.confirmGuideTipsButton?.focus();
+  });
+}
+
+function closeGuideTips() {
+  if (elements.guideTipsModal.hidden) {
+    return;
+  }
+  elements.guideTipsModal.hidden = true;
+  if (!state.lastView.guideTipsSeen) {
+    state.lastView = {
+      ...state.lastView,
+      guideTipsSeen: true,
+    };
+    saveLastView({ guideTipsSeen: true });
+  }
 }
 
 async function copySelectedRunConf() {
@@ -960,11 +1103,13 @@ async function triggerSelectedDag(event) {
   stopPolling();
 
   try {
+    const runId = elements.runIdInput.value.trim() || buildDefaultDagRunId();
     const run = await api.triggerDag(
       state.selectedDag.dag_id,
       conf,
-      elements.runIdInput.value.trim()
+      runId
     );
+    elements.runIdInput.value = "";
     showToast(`已触发 ${run.dag_run_id}`);
     await api.notify(`Airflow DAG 已触发：${state.selectedDag.dag_id}`);
 
@@ -976,11 +1121,55 @@ async function triggerSelectedDag(event) {
     await selectRun(run);
     startPolling();
   } catch (error) {
-    showToast(`Trigger 失败：${error.message}`, "error");
+    if (isDagTriggerLimitError(error)) {
+      const message = formatDagTriggerLimitMessage(error);
+      window.alert(`警报：${message}`);
+      showToast(message, "error");
+    } else {
+      showToast(`Trigger 失败：${error.message}`, "error");
+    }
   } finally {
     state.isTriggering = false;
     elements.triggerButton.disabled = false;
   }
+}
+
+function isDagTriggerLimitError(error) {
+  return String(error?.message || error || "").includes("DAG_TRIGGER_LIMIT:");
+}
+
+function formatDagTriggerLimitMessage(error) {
+  const message = String(error?.message || error || "");
+  const marker = "DAG_TRIGGER_LIMIT:";
+  const markerIndex = message.indexOf(marker);
+  return markerIndex >= 0
+    ? message.slice(markerIndex + marker.length).trim()
+    : message;
+}
+
+function formatDagRunIdUsername() {
+  return (
+    String(state.systemUsername || "unknown")
+      .trim()
+      .replace(/[^A-Za-z0-9_.-]+/g, "_") || "unknown"
+  );
+}
+
+function formatDagRunIdTime(date = new Date()) {
+  const pad = (value) => String(value).padStart(2, "0");
+  return [
+    date.getFullYear(),
+    pad(date.getMonth() + 1),
+    pad(date.getDate()),
+    "_",
+    pad(date.getHours()),
+    pad(date.getMinutes()),
+    pad(date.getSeconds()),
+  ].join("");
+}
+
+function buildDefaultDagRunId() {
+  return `${formatDagRunIdUsername()}_${formatDagRunIdTime()}`;
 }
 
 function getConfFieldConfig(dagId) {

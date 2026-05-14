@@ -1,6 +1,7 @@
 const { app, BrowserWindow, ipcMain, Notification } = require("electron");
 const crypto = require("crypto");
 const fs = require("fs");
+const os = require("os");
 const path = require("path");
 const config = require("./src/config");
 const { AirflowClient } = require("./src/airflowClient");
@@ -8,7 +9,11 @@ const stateStore = require("./src/stateStore");
 
 let airflow;
 let activeAirflowService;
+let dagConfFieldMapping = config.dagConfFieldMapping;
 let mainWindow;
+
+const DAG_TOGGLE_ALLOWED_USERNAME = "shaun.pan";
+const systemUsername = os.userInfo().username || process.env.USER || "";
 
 function safeFilePart(value) {
   return String(value || "airflow")
@@ -73,9 +78,42 @@ function activePublicConfig() {
   return {
     ...airflow.publicConfig,
     services: publicAirflowServices(),
-    dagConfFieldMapping: config.dagConfFieldMapping,
+    dagConfFieldMapping,
+    systemUsername,
+    canToggleDag: systemUsername === DAG_TOGGLE_ALLOWED_USERNAME,
     defaultServiceId: config.defaultAirflowServiceId,
   };
+}
+
+function reloadDagConfFieldMapping() {
+  dagConfFieldMapping = config.loadDagConfFieldMapping();
+  return dagConfFieldMapping;
+}
+
+function formatRunIdTime(date = new Date()) {
+  const pad = (value) => String(value).padStart(2, "0");
+  return [
+    date.getFullYear(),
+    pad(date.getMonth() + 1),
+    pad(date.getDate()),
+    "_",
+    pad(date.getHours()),
+    pad(date.getMinutes()),
+    pad(date.getSeconds()),
+  ].join("");
+}
+
+function buildDefaultDagRunId() {
+  const user = String(systemUsername || "unknown")
+    .trim()
+    .replace(/[^A-Za-z0-9_.-]+/g, "_") || "unknown";
+  return `${user}_${formatRunIdTime()}`;
+}
+
+function assertCanToggleDag() {
+  if (systemUsername !== DAG_TOGGLE_ALLOWED_USERNAME) {
+    throw new Error(`当前系统用户 ${systemUsername || "unknown"} 无权操作 DAG 开关`);
+  }
 }
 
 function activateAirflowService(serviceId) {
@@ -122,8 +160,15 @@ function registerIpcHandlers() {
     stateStore.savePatch({ airflowServiceId: activeAirflowService.id });
     return { config: activePublicConfig() };
   });
+  ipcMain.handle("app:reload-dag-conf-mapping", async () => ({
+    dagConfFieldMapping: reloadDagConfFieldMapping(),
+  }));
   ipcMain.handle("airflow:relogin", async () => airflow.relogin());
   ipcMain.handle("airflow:list-dags", async (_event, owner) => airflow.listDags(owner));
+  ipcMain.handle("airflow:set-dag-paused", async (_event, dagId, isPaused) => {
+    assertCanToggleDag();
+    return airflow.setDagPaused(dagId, isPaused);
+  });
   ipcMain.handle("airflow:list-tasks", async (_event, dagId) => airflow.listTasks(dagId));
   ipcMain.handle("airflow:list-dag-runs", async (_event, dagId, limit) =>
     airflow.listDagRuns(dagId, limit),
@@ -138,7 +183,7 @@ function registerIpcHandlers() {
     airflow.listTaskTries(dagId, dagRunId, taskId, mapIndex),
   );
   ipcMain.handle("airflow:trigger-dag", async (_event, dagId, conf, runId) =>
-    airflow.triggerDag(dagId, conf, runId),
+    airflow.triggerDag(dagId, conf, String(runId || "").trim() || buildDefaultDagRunId()),
   );
   ipcMain.handle("airflow:terminate-task", async (_event, params) => airflow.terminateTask(params));
   ipcMain.handle("airflow:get-task-log", async (_event, params) => airflow.getTaskLog(params));
