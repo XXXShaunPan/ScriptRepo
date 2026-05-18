@@ -69,11 +69,28 @@ function parseEnvContent(content) {
 }
 
 function parseEnvFile(fileName) {
-  const envPath = path.join(__dirname, "..", fileName);
-  if (!fs.existsSync(envPath)) {
-    return {};
+  const env = {};
+  for (const envPath of envFileCandidates(fileName)) {
+    if (fs.existsSync(envPath)) {
+      Object.assign(env, parseEnvContent(fs.readFileSync(envPath, "utf8")));
+    }
   }
-  return parseEnvContent(fs.readFileSync(envPath, "utf8"));
+  return env;
+}
+
+function envFileCandidates(fileName) {
+  const explicitPath =
+    fileName === ".env"
+      ? process.env.AIRFLOW_GUI_ENV_PATH
+      : process.env.DAG_CONF_ENV_PATH;
+  const candidates = [
+    path.join(__dirname, "..", fileName),
+    process.resourcesPath ? path.join(process.resourcesPath, fileName) : "",
+    process.execPath ? path.join(path.dirname(process.execPath), fileName) : "",
+    path.join(process.cwd(), fileName),
+    explicitPath || "",
+  ];
+  return [...new Set(candidates.filter(Boolean).map((item) => path.resolve(item)))];
 }
 
 function isHttpUrl(value) {
