@@ -1,0 +1,16 @@
+{
+  "version": "2026.05.27.1",
+  "enabled": true,
+  "files": [
+    {
+      "name": "1688_transport_info_v4.py",
+      "url": "https://example.com/1688/1688_transport_info_v4.py",
+      "sha256": "replace_with_64_char_sha256"
+    },
+    {
+      "name": "1688_order_refund.py",
+      "url": "https://example.com/1688/1688_order_refund.py",
+      "sha256": "replace_with_64_char_sha256"
+    }
+  ]
+}
