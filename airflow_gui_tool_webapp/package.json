@@ -1,0 +1,23 @@
+{
+  "name": "airflow-gui-tool-webapp",
+  "version": "1.0.0",
+  "description": "SeaTalk WebApp version of Lovito Airflow Task Hub.",
+  "main": "server/index.js",
+  "author": "Shaun Pan",
+  "license": "MIT",
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "NODE_ENV=development node server/index.js",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "express-session": "^1.18.1"
+  },
+  "devDependencies": {
+    "supertest": "^7.0.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
