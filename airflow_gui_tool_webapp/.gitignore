@@ -1,6 +1,5 @@
 node_modules/
 logs/
-.env
 .dag-conf.env
 data/
 coverage/
