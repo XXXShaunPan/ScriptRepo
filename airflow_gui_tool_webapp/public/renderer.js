@@ -26,9 +26,10 @@ const WORKSPACE_MIN_WIDTHS = {
   log: 380,
 };
 const VIEWPORT_WARNING_THRESHOLD = {
-  width: 360,
+  width: 1200,
   height: 640,
 };
+const MOBILE_VIEW_MEDIA_QUERY = "(max-width: 900px)";
 const ADD_DAG_TEMPLATES = {
   bash: "Bash 命令",
   python: "Python 调用",
@@ -95,6 +96,7 @@ const state = {
   viewportIsTooSmall: false,
   viewportWarningDismissed: false,
   viewportResizeTimer: null,
+  isMobileViewport: false,
 };
 
 function $(id) {
@@ -203,6 +205,10 @@ function cacheElements() {
 
 async function init() {
   cacheElements();
+  state.isMobileViewport = isMobileViewport();
+  if (state.isMobileViewport) {
+    setMobileView("dag", { save: false });
+  }
   bindEvents();
   checkViewportSize({ force: true });
   setBusy(true, "正在初始化");
@@ -226,7 +232,10 @@ async function init() {
     elements.runIdInput.placeholder = `${formatDagRunIdUsername()}_YYYYMMDD_HHMMSS`;
     elements.autoTailToggle.checked = state.autoTail;
     elements.autoFollowToggle.checked = state.autoFollowTask;
-    setMobileView(state.lastView.mobileView || "dag", { save: false });
+    setMobileView(
+      state.isMobileViewport ? "dag" : state.lastView.mobileView || "dag",
+      { save: false },
+    );
     renderAirflowServiceOptions();
     applyWorkspaceLayout();
     requestAnimationFrame(() => {
@@ -234,6 +243,9 @@ async function init() {
     });
 
     await refreshDags({ restore: true });
+    if (state.isMobileViewport) {
+      setMobileView("dag", { save: false });
+    }
   } catch (error) {
     showToast(`初始化失败：${error.message}`, "error");
     renderError(elements.dagList, error);
@@ -438,8 +450,22 @@ function bindEvents() {
   bindWorkspaceResizers();
   window.addEventListener("resize", () => {
     clampAndApplyWorkspaceLayout({ save: false });
+    syncMobileViewForViewport();
     scheduleViewportSizeCheck();
   });
+}
+
+function isMobileViewport() {
+  return window.matchMedia(MOBILE_VIEW_MEDIA_QUERY).matches;
+}
+
+function syncMobileViewForViewport() {
+  const mobileNow = isMobileViewport();
+  const enteredMobile = mobileNow && !state.isMobileViewport;
+  state.isMobileViewport = mobileNow;
+  if (enteredMobile) {
+    setMobileView("dag", { save: false });
+  }
 }
 
 function getViewportSize() {
@@ -1409,7 +1435,9 @@ function renderRuns() {
           run.dag_run_id,
         )}">
           <div class="run-row-main">
-            <span class="run-id">${escapeHtml(run.dag_run_id)}</span>
+            <span class="run-id" title="${escapeAttr(
+              run.dag_run_id,
+            )}">${escapeHtml(run.dag_run_id)}</span>
             <span class="run-meta">${formatTime(
               run.execution_date,
             )} · ${formatTime(run.start_date)} · ${escapeHtml(
