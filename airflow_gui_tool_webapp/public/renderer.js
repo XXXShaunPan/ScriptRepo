@@ -25,6 +25,10 @@ const WORKSPACE_MIN_WIDTHS = {
   detail: 320,
   log: 380,
 };
+const VIEWPORT_WARNING_THRESHOLD = {
+  width: 360,
+  height: 640,
+};
 const ADD_DAG_TEMPLATES = {
   bash: "Bash 命令",
   python: "Python 调用",
@@ -87,6 +91,10 @@ const state = {
   isTriggering: false,
   isTerminating: false,
   isLoading: false,
+  hasInitialized: false,
+  viewportIsTooSmall: false,
+  viewportWarningDismissed: false,
+  viewportResizeTimer: null,
 };
 
 function $(id) {
@@ -166,6 +174,9 @@ function cacheElements() {
     "guideTipsModal",
     "closeGuideTipsButton",
     "confirmGuideTipsButton",
+    "viewportWarningModal",
+    "viewportWarningSize",
+    "closeViewportWarningButton",
     "runList",
     "taskModeText",
     "taskList",
@@ -193,6 +204,7 @@ function cacheElements() {
 async function init() {
   cacheElements();
   bindEvents();
+  checkViewportSize({ force: true });
   setBusy(true, "正在初始化");
 
   try {
@@ -227,6 +239,8 @@ async function init() {
     renderError(elements.dagList, error);
   } finally {
     setBusy(false);
+    state.hasInitialized = true;
+    checkViewportSize({ force: true });
     maybeOpenGuideTips();
     maybeCheckUpdateOnStart();
   }
@@ -310,6 +324,10 @@ function bindEvents() {
   elements.downloadUpdateButton.addEventListener("click", downloadUpdate);
   elements.closeGuideTipsButton.addEventListener("click", closeGuideTips);
   elements.confirmGuideTipsButton.addEventListener("click", closeGuideTips);
+  elements.closeViewportWarningButton.addEventListener(
+    "click",
+    closeViewportWarning,
+  );
   elements.runConfModal.addEventListener("click", (event) => {
     if (event.target === elements.runConfModal) {
       closeRunConfModal();
@@ -342,6 +360,10 @@ function bindEvents() {
       return;
     }
     if (event.key !== "Escape") {
+      return;
+    }
+    if (!elements.viewportWarningModal.hidden) {
+      closeViewportWarning();
       return;
     }
     if (!elements.addDagModal.hidden) {
@@ -416,7 +438,75 @@ function bindEvents() {
   bindWorkspaceResizers();
   window.addEventListener("resize", () => {
     clampAndApplyWorkspaceLayout({ save: false });
+    scheduleViewportSizeCheck();
   });
+}
+
+function getViewportSize() {
+  return {
+    width: Math.round(window.innerWidth || document.documentElement.clientWidth),
+    height: Math.round(
+      window.innerHeight || document.documentElement.clientHeight,
+    ),
+  };
+}
+
+function scheduleViewportSizeCheck() {
+  window.clearTimeout(state.viewportResizeTimer);
+  state.viewportResizeTimer = window.setTimeout(checkViewportSize, 180);
+}
+
+function checkViewportSize({ force = false } = {}) {
+  const viewport = getViewportSize();
+  const isTooSmall =
+    viewport.width < VIEWPORT_WARNING_THRESHOLD.width ||
+    viewport.height < VIEWPORT_WARNING_THRESHOLD.height;
+
+  if (!isTooSmall) {
+    const wasTooSmall = state.viewportIsTooSmall;
+    state.viewportIsTooSmall = false;
+    state.viewportWarningDismissed = false;
+    if (!elements.viewportWarningModal.hidden) {
+      closeViewportWarning({ dismissed: false });
+    } else if (wasTooSmall && state.hasInitialized) {
+      maybeOpenGuideTips();
+    }
+    return;
+  }
+
+  const crossedThreshold = !state.viewportIsTooSmall;
+  state.viewportIsTooSmall = true;
+  elements.viewportWarningSize.textContent =
+    `当前 ${viewport.width} × ${viewport.height} px · ` +
+    `建议至少 ${VIEWPORT_WARNING_THRESHOLD.width} × ${VIEWPORT_WARNING_THRESHOLD.height} px`;
+
+  if (
+    (force || crossedThreshold) &&
+    !state.viewportWarningDismissed &&
+    elements.viewportWarningModal.hidden
+  ) {
+    openViewportWarning();
+  }
+}
+
+function openViewportWarning() {
+  elements.viewportWarningModal.hidden = false;
+  requestAnimationFrame(() => {
+    elements.closeViewportWarningButton?.focus();
+  });
+}
+
+function closeViewportWarning({ dismissed = true } = {}) {
+  if (elements.viewportWarningModal.hidden) {
+    return;
+  }
+  elements.viewportWarningModal.hidden = true;
+  if (dismissed) {
+    state.viewportWarningDismissed = true;
+  }
+  if (!state.viewportIsTooSmall && state.hasInitialized) {
+    maybeOpenGuideTips();
+  }
 }
 
 function setMobileView(view, { save = true } = {}) {
@@ -2064,7 +2154,11 @@ async function downloadUpdate() {
 }
 
 function maybeOpenGuideTips() {
-  if (!state.lastView.guideTipsSeen) {
+  if (
+    !state.lastView.guideTipsSeen &&
+    !state.viewportIsTooSmall &&
+    elements.viewportWarningModal.hidden
+  ) {
     openGuideTips();
   }
 }
@@ -2942,6 +3036,7 @@ function isAnyModalOpen() {
     elements.addDagModal,
     elements.updateModal,
     elements.guideTipsModal,
+    elements.viewportWarningModal,
   ].some((modal) => modal && !modal.hidden);
 }
 

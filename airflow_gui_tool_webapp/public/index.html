@@ -51,6 +51,11 @@
         <path d="M12 16v-4" />
         <path d="M12 8h.01" />
       </symbol>
+      <symbol id="icon-alert-triangle" viewBox="0 0 24 24">
+        <path d="m21.73 18-8-14a2 2 0 0 0-3.46 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3" />
+        <path d="M12 9v4" />
+        <path d="M12 17h.01" />
+      </symbol>
       <symbol id="icon-plus" viewBox="0 0 24 24">
         <path d="M12 5v14" />
         <path d="M5 12h14" />
@@ -843,6 +848,36 @@
             <p id="updateProgressText">准备下载</p>
           </div>
           <div id="updateNotes" class="update-notes"></div>
+        </div>
+      </div>
+    </div>
+    <div id="viewportWarningModal" class="modal-backdrop" hidden>
+      <div
+        class="modal viewport-warning-modal"
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby="viewportWarningTitle"
+        aria-describedby="viewportWarningDescription viewportWarningSize"
+      >
+        <div class="viewport-warning-body">
+          <div class="viewport-warning-icon" aria-hidden="true">
+            <svg><use href="#icon-alert-triangle"></use></svg>
+          </div>
+          <div class="viewport-warning-copy">
+            <p class="viewport-warning-kicker">VIEWPORT NOTICE</p>
+            <h2 id="viewportWarningTitle">窗口显示空间不足</h2>
+            <p id="viewportWarningDescription">
+              当前窗口可能无法完整展示任务信息，请放大窗口后继续查看。
+            </p>
+            <p id="viewportWarningSize" class="viewport-warning-size"></p>
+          </div>
+          <button
+            id="closeViewportWarningButton"
+            class="button primary viewport-warning-action"
+            type="button"
+          >
+            知道了
+          </button>
         </div>
       </div>
     </div>
